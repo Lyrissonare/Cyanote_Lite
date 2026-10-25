@@ -1,0 +1,18 @@
+{
+  "name": "cyanote-lite",
+  "version": "1.0.0",
+  "description": "Cyanote Lite — 纯静态版 Cyanote：同样的 Hexo/Butterfly 阅读体验，零服务端，可托管于 GitHub Pages。",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "serve": "node serve.mjs",
+    "dev": "node serve.mjs --watch",
+    "migrate": "node tools/export-from-cyanote.mjs",
+    "test": "node tools/selftest.mjs"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}

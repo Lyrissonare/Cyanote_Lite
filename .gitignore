@@ -1,0 +1,16 @@
+# build artifacts
+node_modules/
+
+# Windows publisher build output
+publisher/dist/
+publisher/bin/
+publisher/obj/
+publisher/publish/
+
+# local junk
+Thumbs.db
+.DS_Store
+*.log
+
+# local agent workspace (memory, captures, throwaway scripts)
+.workbuddy/

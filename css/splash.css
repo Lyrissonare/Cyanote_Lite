@@ -1,0 +1,122 @@
+/* ============================================================
+   Cyanote — opening splash ("a drop, then the fisheye closes")
+   ------------------------------------------------------------
+   The backdrop itself is a canvas (js/splash.js): a canvas is what lets the
+   whole scene be pushed through a fisheye projection and then shrunk into a
+   point while the page waits underneath. This sheet only owns the shell and
+   the wordmark.
+
+   Timeline (≈2.6s):
+     0.10s   a drop lands; concentric ripples race out
+     0.58s   the wake loses energy and retracts from the edges
+     0.88s   the fisheye disc grows from the centre; the wordmark is pushed out
+     1.78s   the page enters while the lens is still alive; its DOM bends too
+     +0.48s  the page straightens as the whole lens is sucked into the centre
+   ============================================================ */
+
+.splash { display: none; }
+
+html.splash-pending .splash {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  /* matches the canvas field, so the very first paint is already the right
+     colour. It stays opaque under the canvas until the reveal hole opens,
+     which also guarantees no page flash before the first GPU frame. */
+  background: #04080f;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+html[data-theme='light'].splash-pending .splash { background: #c6daf6; }
+html.splash-pending .splash.is-revealing { background: transparent; }
+
+html.splash-pending { overflow: hidden; }
+
+.splash-lens {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* The splash fully covers the page. Stop the page's own show from competing
+   for the compositor during those two seconds (the dissolve canvas pauses
+   itself in js/dissolve.js). */
+html.splash-pending #cursor-glow,
+html.splash-pending .bg-grid { visibility: hidden; }
+html.splash-pending .bg-grid { animation-play-state: paused !important; }
+html.splash-pending .site-header {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+/* keep the page still while the fisheye filter is being re-rasterised; the
+   page intro runs as soon as the lens is gone */
+html.splash-pending #app *,
+html.splash-pending #page-stage .site-header * { animation-play-state: paused !important; }
+
+/* ---------- wordmark ---------- */
+.splash-brand {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.splash-brand-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  opacity: 0;
+  will-change: transform, opacity, filter;
+}
+.splash-letter {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #2563eb, #60a5fa);
+  color: #fff;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 27px;
+  line-height: 1;
+  box-shadow: 0 14px 44px rgba(37, 99, 235, 0.45), 0 0 0 1px rgba(147, 197, 253, 0.35) inset;
+}
+.splash-name {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;
+  color: rgba(226, 240, 255, 0.9);
+  text-transform: none;
+}
+html[data-theme='light'] .splash-name { color: #16376b; }
+
+/* ---------- timeline ---------- */
+.splash.is-playing .splash-brand-inner {
+  animation: splash-brand-in 500ms cubic-bezier(0.16, 0.84, 0.3, 1) 300ms both;
+}
+
+/* the wordmark is pushed out of the water as the fisheye takes over */
+.splash.is-lensing .splash-brand-inner {
+  animation: splash-brand-out 340ms cubic-bezier(0.5, 0, 0.75, 0.25) both;
+}
+
+@keyframes splash-brand-in {
+  0%   { opacity: 0; transform: translateY(14px) scale(0.955); filter: blur(8px); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes splash-brand-out {
+  0%   { opacity: 1; transform: none; filter: blur(0); }
+  100% { opacity: 0; transform: scale(1.16); filter: blur(7px); }
+}

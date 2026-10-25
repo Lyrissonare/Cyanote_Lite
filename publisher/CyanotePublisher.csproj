@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>CyanotePublisher</RootNamespace>
+    <AssemblyName>CyanotePublisher</AssemblyName>
+    <AssemblyTitle>Cyanote Publisher</AssemblyTitle>
+    <Product>Cyanote Publisher</Product>
+    <Description>Cyanote Lite 文章发布器 — 选择 Markdown，一键推送到 GitHub Pages</Description>
+    <Version>1.0.0</Version>
+    <FileVersion>1.0.0.0</FileVersion>
+    <!-- 不可启用 InvariantGlobalization：WPF 字体缓存（MS.Internal.FontCache）在 invariant
+         模式下创建 CultureInfo("en") 会抛异常，任何中文文本渲染都会崩溃 -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- single-file publish niceties -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+
+</Project>

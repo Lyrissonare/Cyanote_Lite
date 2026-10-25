@@ -1,0 +1,88 @@
+{
+  "posts": [
+    {
+      "slug": "hello-cyanote",
+      "title": "你好，Cyanote — 从零搭建一个蓝色博客",
+      "content": "# 你好，Cyanote\n\n这是一篇「关于本站」的文章，也是系统自我介绍的演示稿。\n\n## 为什么是蓝色\n\n> 蓝色是天空、是海洋，也是代码高亮里最安详的颜色。\n> —— 本站的信条\n\n全局特征色为蓝色：链接、徽章、按钮、代码块边框……一切皆蓝。\n\n## 特性一览\n\n- **阅读**：首页、文章列表、分类、标签、归档，布局参照 Hexo 等成熟博客\n- **写作**：语雀式的 Markdown 编辑器，实时预览，可拖拽 / 粘贴上传图片\n- **外观**：暗色 / 亮色主题一键切换；首页可开启「未来主义」先锋风格\n- **管理**：草稿与发布、目录（slug）、置顶、浏览计数，全部通过 REST API\n\n## 技术选型\n\n| 层 | 技术 |\n| --- | --- |\n| 后端 | Node.js + Express + 内置 SQLite |\n| 前端 | 原生 JS 单页应用（无构建步骤） |\n| 渲染 | marked + DOMPurify + Prism 高亮 |\n\n```js\n// 一段表白的代码\nconst cyanote = async (idea) => {\n  const draft = await writer.start(idea);\n  return publisher.note(draft).withColor('blue');\n};\ncyanote('Hello, Blue');\n```\n\n祝你和你的博客都保持明亮 🌊",
+      "excerpt": "Cyanote 是我为自己打造的博客系统：Hexo 式的阅读体验、语雀式的写作体验，以及一抹贯穿始终的蓝。",
+      "cover": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%221200%22%20height%3D%22480%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%230b3bbf%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%233b82f6%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%221200%22%20height%3D%22480%22%20fill%3D%22url(%23g)%22%2F%3E%3Ccircle%20cx%3D%221000%22%20cy%3D%2280%22%20r%3D%22160%22%20fill%3D%22%23ffffff22%22%2F%3E%3Ccircle%20cx%3D%22180%22%20cy%3D%22420%22%20r%3D%22120%22%20fill%3D%22%23ffffff18%22%2F%3E%3Ctext%20x%3D%2270%22%20y%3D%22260%22%20font-family%3D%22system-ui%2CSegoe%20UI%2Csans-serif%22%20font-size%3D%2264%22%20font-weight%3D%22700%22%20fill%3D%22%23ffffffec%22%3ECyanote%3C%2Ftext%3E%3Ctext%20x%3D%2272%22%20y%3D%22330%22%20font-family%3D%22system-ui%2CSegoe%20UI%2Csans-serif%22%20font-size%3D%2228%22%20fill%3D%22%23ffffffb0%22%3ERender%20ideas%20in%20blue.%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "categories": [
+        "技术"
+      ],
+      "tags": [
+        "Cyanote",
+        "Node.js",
+        "博客"
+      ],
+      "status": "published",
+      "pinned": true,
+      "views": 55,
+      "createdAt": "2025-01-06T09:00:00.000Z",
+      "updatedAt": "2026-10-06T15:05:00.000Z",
+      "publishedAt": "2025-01-06T09:00:00.000Z"
+    },
+    {
+      "slug": "node-sqlite-guide",
+      "title": "Node.js 内置 SQLite 使用指南",
+      "content": "# Node.js 内置 SQLite 使用指南\n\n从 `node:sqlite` 进入稳定性航道后，我们不再需要 `better-sqlite3` 的原生编译。\n\n## 快速上手\n\n```js\nimport { DatabaseSync } from 'node:sqlite';\n\nconst db = new DatabaseSync('blog.db');\ndb.exec('CREATE TABLE IF NOT EXISTS posts (id INTEGER PRIMARY KEY, title TEXT)');\ndb.prepare('INSERT INTO posts (title) VALUES (?)').run('第一篇');\nconsole.log(db.prepare('SELECT * FROM posts').all());\n```\n\n## 三个要点\n\n1. **同步 API**：与 better-sqlite3 一样同步、直接、快\n2. **预处理语句**：始终用 `?` 占位符，杜绝注入\n3. **WAL 模式**：读多写少的博客场景，并发收益明显\n\n> 小技巧：`PRAGMA journal_mode = WAL` 应该在建表之前执行。",
+      "excerpt": "从 Node 22.5 开始，node:sqlite 成为内置模块。这篇文章记录它的 API 与最佳实践。",
+      "cover": "",
+      "categories": [
+        "技术"
+      ],
+      "tags": [
+        "Node.js",
+        "SQLite",
+        "后端"
+      ],
+      "status": "published",
+      "pinned": false,
+      "views": 0,
+      "createdAt": "2025-02-14T09:00:00.000Z",
+      "updatedAt": "2026-10-06T15:05:00.000Z",
+      "publishedAt": "2025-02-14T09:00:00.000Z"
+    },
+    {
+      "slug": "design-a-blog-in-blue",
+      "title": "用「蓝」设计一个博客：从色板到氛围",
+      "content": "# 用「蓝」设计一个博客\n\n## 一套色板\n\n```css\n:root {\n  --accent: #3b82f6;        /* 主蓝 */\n  --accent-strong: #2563eb; /* 深蓝 */\n  --accent-soft: #dbeafe;   /* 淡蓝底色 */\n}\n```\n\n暗色模式下把主蓝微微调亮，让它在深底上依旧清澈：\n\n```css\n[data-theme='dark'] {\n  --accent: #60a5fa;\n  --accent-strong: #3b82f6;\n  --accent-soft: #1e3a5f;\n}\n```\n\n## 两种性格\n\n- **经典模式**：白纸黑字、留白与衬线标题 —— 安静地阅读\n- **未来主义**：动态网格、霓虹描边、玻璃拟态 —— 先锋地登场\n\n未来主义不是默认，而是一种可选的情绪。首页右上角的大门，随时为它敞开。",
+      "excerpt": "蓝色博客的设计语言：一套色板、两套主题、一种“先锋”可能。",
+      "cover": "",
+      "categories": [
+        "设计"
+      ],
+      "tags": [
+        "设计",
+        "CSS",
+        "色彩"
+      ],
+      "status": "published",
+      "pinned": false,
+      "views": 4,
+      "createdAt": "2025-03-22T09:00:00.000Z",
+      "updatedAt": "2025-03-22T09:00:00.000Z",
+      "publishedAt": "2025-03-22T09:00:00.000Z"
+    },
+    {
+      "slug": "markdown-editor-notes",
+      "title": "语雀式编辑器是怎样炼成的：实时预览与图片上传",
+      "content": "# 语雀式编辑器是怎样炼成的\n\n## 实时预览的关键：防抖\n\n```js\nlet timer;\ntextarea.addEventListener('input', () => {\n  clearTimeout(timer);\n  timer = setTimeout(render, 250); // 输入停顿 250ms 后渲染\n});\n```\n\n## 三种视图\n\n- **编辑**：沉浸写作\n- **双栏**：左写右看，语雀默认\n- **预览**：只看成稿\n\n## 图片上传链路\n\n1. 拖拽或粘贴图片到编辑器\n2. `FormData` 上传到 `POST /api/uploads`\n3. 服务端落盘 `data/uploads`，返回 URL\n4. 光标处插入 `![图片](url)`，预览立即呈现成图\n\n> 多图连贴？一次排队上传，逐个插入，成功一个展示一个。",
+      "excerpt": "拆解 Cyanote 编辑器：防抖渲染、视图切换、拖拽粘贴上传的完整链路。",
+      "cover": "",
+      "categories": [
+        "技术"
+      ],
+      "tags": [
+        "Markdown",
+        "编辑器",
+        "前端"
+      ],
+      "status": "published",
+      "pinned": false,
+      "views": 8,
+      "createdAt": "2025-04-02T09:00:00.000Z",
+      "updatedAt": "2026-10-06T15:05:00.000Z",
+      "publishedAt": "2025-04-02T09:00:00.000Z"
+    }
+  ]
+}

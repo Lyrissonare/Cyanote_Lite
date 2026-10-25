@@ -1,0 +1,9 @@
+{
+  "homeRecentCount": "3",
+  "aboutContent": "# 关于 Cyanote\n\n> 在蓝色的深处，记录思想与代码。\n\n**Cyanote** 是一个前后分离的博客系统：公开站点参照 Hexo / Butterfly 的阅读体验，管理台（`/admin`，隐藏入口）提供语雀式的写作体验，全局特征色为蓝色。\n\n## 它有什么\n\n- **阅读**：首页（最新文章 + 侧边栏统计）、文章列表、分类、标签、归档、关于\n- **外观**：暗色 / 亮色主题一键切换；侧边栏可开启「未来视效」先锋风格\n- **写作**：Markdown 实时预览、快捷工具栏、图片拖拽 / 粘贴即时上传\n- **视效**：跟随鼠标的柔和光照\n\n## 技术栈\n\n| 层 | 技术 |\n| --- | --- |\n| 后端 | Node.js + Express + 内置 SQLite |\n| 公开前端 | 原生 JS 单页应用（零构建） |\n| 管理台 | 独立入口（/admin，令牌鉴权） |\n| 渲染 | marked + DOMPurify + Prism |\n\n## 关于本文\n\n这段内容来自「站点设置」，可在管理台右上角的 **⚙ 设置** 中直接编辑。\n",
+  "friendLinks": "[{\"name\":\"张三的博客\",\"url\":\"https://example.com\",\"desc\":\"前端 / 摄影\"},{\"name\":\"李四的笔记\",\"url\":\"https://example.org\",\"desc\":\"\"}]",
+  "protectionLevel": "high",
+  "announcementsEnabled": "0",
+  "announcements": "欢迎使用 **Cyanote**！\n\n- 支持 [Markdown](https://github.com/Lyrissonare/Cyanote)\n- `行内代码` 与引用\n\n> 侧边栏公告测试",
+  "friendLinksEnabled": "0"
+}
