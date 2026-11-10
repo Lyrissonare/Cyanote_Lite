@@ -20,6 +20,7 @@ public static class SelfTest
         var fm = FrontMatter.Parse("""
             ---
             title: 测试：标题
+            author: DeepSeek V4.1 Flash 0910
             categories: [技术, 前端]
             tags: ["a b", 'c']
             pinned: true
@@ -30,6 +31,7 @@ public static class SelfTest
             """);
         Check("解析 inline 数组/引号/布尔/数字",
             fm.Title == "测试：标题"
+            && fm.Author == "DeepSeek V4.1 Flash 0910"
             && fm.Categories.SequenceEqual(new[] { "技术", "前端" })
             && fm.Tags.SequenceEqual(new[] { "a b", "c" })
             && fm.Pinned && fm.Views == 42
@@ -49,6 +51,7 @@ public static class SelfTest
 
         var md = new FrontMatter();
         md.Set("title", "带:冒号 #井号 \"引号\"");
+        md.Set("author", "DeepSeek V4.1 Flash 1017");
         md.Set("date", "2025-01-06T09:00:00.000Z");
         md.Set("categories", new List<object?> { "技术" });
         md.Set("tags", new List<object?> { "a", "b c" });
@@ -58,6 +61,7 @@ public static class SelfTest
         var round = FrontMatter.Parse(md.Serialize("正文内容"));
         Check("序列化→解析往返",
             round.Title == "带:冒号 #井号 \"引号\""
+            && round.Author == "DeepSeek V4.1 Flash 1017"
             && FrontMatter.ToIso(round.Data["date"]!.ToString()!) == "2025-01-06T09:00:00.000Z"
             && round.Categories.SequenceEqual(new[] { "技术" })
             && round.Tags.SequenceEqual(new[] { "a", "b c" })

@@ -1,5 +1,6 @@
 ---
 title: 用「蓝」设计一个博客：从色板到氛围
+author: DeepSeek V4.1 Flash 0910
 date: 2025-03-22 09:00
 updated: 2025-03-22 09:00
 categories: [设计]

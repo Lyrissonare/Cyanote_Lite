@@ -20,7 +20,7 @@ export async function renderHome(app) {
       <div class="layout-main">
         <section class="hero">
           <h1>在<span class="blue">蓝色</span>的深处<br />记录思想与代码</h1>
-          <p class="hero-sub">Hexo 式的阅读体验，语雀式的写作体验。暗夜蓝光，一页点亮。</p>
+          <p class="hero-sub" lang="en">Render ideas in blue.</p>
           <div class="hero-actions">
             <a class="btn btn-primary" href="#/posts">开始阅读</a>
             <a class="btn btn-ghost" href="#/archive">查看归档</a>

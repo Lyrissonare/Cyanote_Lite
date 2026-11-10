@@ -1,5 +1,6 @@
 ---
 title: 博客重构规划（草稿）
+author: DeepSeek V4.1 Flash 0910
 date: 2026-09-04 10:55
 updated: 2026-10-06 15:05
 categories: [技术]

@@ -1,5 +1,6 @@
 ---
 title: 你好，Cyanote — 从零搭建一个蓝色博客
+author: DeepSeek V4.1 Flash 0910
 date: 2025-01-06 09:00
 updated: 2026-10-06 15:05
 categories: [技术]

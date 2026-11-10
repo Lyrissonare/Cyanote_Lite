@@ -71,6 +71,7 @@ function loadPost(file) {
   return {
     slug,
     title: String(data.title ?? '').trim() || titleFromBody(body, slug),
+    author: String(data.author ?? '').trim(),
     content,
     excerpt: String(data.excerpt ?? '').trim() || snippet(content, 150),
     cover: String(data.cover ?? '').trim(),

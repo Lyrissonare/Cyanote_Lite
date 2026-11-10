@@ -259,6 +259,7 @@ public partial class MainWindow : Window
         {
             Slug = slug,
             Title = input.Title,
+            Author = fm.Author ?? "",
             Content = content,
             Excerpt = input.Excerpt.Length > 0 ? input.Excerpt : FrontMatter.Snippet(content, 150),
             Cover = fm.Cover ?? "",

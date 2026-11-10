@@ -19,6 +19,15 @@ export function invalidateMeta() {
   metaCache = null;
 }
 
+export function authorHTML(author) {
+  const name = String(author || '').trim();
+  if (!name) return '';
+  const icon = /^DeepSeek\b/i.test(name)
+    ? '<img class="deepseek-whale" src="vendor/deepseek.svg" alt="" width="17" height="17" />'
+    : '';
+  return `<span class="post-author">${icon}<span>${escapeHtml(name)}</span></span>`;
+}
+
 export function postCardHTML(article, { showExcerpt = true } = {}) {
   const date = article.publishedAt || article.updatedAt;
   const href = `#/post/${encodeURIComponent(article.slug)}`;
@@ -41,7 +50,8 @@ export function postCardHTML(article, { showExcerpt = true } = {}) {
         : ''
     }
     <div class="post-meta">
-      <time>${fmtDate(date)}</time>
+      ${authorHTML(article.author)}
+      ${article.author ? '<span class="dot"></span>' : ''}<time>${fmtDate(date)}</time>
       ${cats ? `<span class="dot"></span>${cats}` : ''}
       ${tags ? `<span class="dot"></span>${tags}` : ''}
       ${words > 0 ? `<span class="words" title="字数">${words} 字</span>` : ''}

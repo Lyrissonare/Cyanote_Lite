@@ -57,6 +57,7 @@ public sealed class ManifestPost
 {
     [JsonPropertyName("slug")] public string Slug { get; set; } = "";
     [JsonPropertyName("title")] public string Title { get; set; } = "";
+    [JsonPropertyName("author")] public string Author { get; set; } = "";
     [JsonPropertyName("content")] public string Content { get; set; } = "";
     [JsonPropertyName("excerpt")] public string Excerpt { get; set; } = "";
     [JsonPropertyName("cover")] public string Cover { get; set; } = "";

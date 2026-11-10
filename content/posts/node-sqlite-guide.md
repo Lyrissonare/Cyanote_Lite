@@ -1,5 +1,6 @@
 ---
 title: Node.js 内置 SQLite 使用指南
+author: DeepSeek V4.1 Flash 0910
 date: 2025-02-14 09:00
 updated: 2026-10-06 15:05
 categories: [技术]

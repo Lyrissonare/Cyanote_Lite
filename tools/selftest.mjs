@@ -22,10 +22,11 @@ console.log('front-matter:');
 
 test('inline arrays, quotes, booleans, numbers', () => {
   const { data, body, hasFm } = parseFrontMatter(
-    `---\ntitle: 测试：标题\ncategories: [技术, 前端]\ntags: ["a b", 'c']\npinned: true\nviews: 42\n---\n\n正文`
+    `---\ntitle: 测试：标题\nauthor: DeepSeek V4.1 Flash 0910\ncategories: [技术, 前端]\ntags: ["a b", 'c']\npinned: true\nviews: 42\n---\n\n正文`
   );
   assert.equal(hasFm, true);
   assert.equal(data.title, '测试：标题');
+  assert.equal(data.author, 'DeepSeek V4.1 Flash 0910');
   assert.deepEqual(data.categories, ['技术', '前端']);
   assert.deepEqual(data.tags, ['a b', 'c']);
   assert.equal(data.pinned, true);
@@ -56,11 +57,12 @@ test('naive datetimes are UTC', () => {
 
 test('stringify → parse round-trip', () => {
   const md = stringifyFrontMatter(
-    { title: '带:冒号 #井号 "引号"', date: '2025-01-06T09:00:00.000Z', categories: ['技术'], tags: ['a', 'b c'], pinned: true, views: 7, custom: 'keep me' },
+    { title: '带:冒号 #井号 "引号"', author: 'DeepSeek V4.1 Flash 1017', date: '2025-01-06T09:00:00.000Z', categories: ['技术'], tags: ['a', 'b c'], pinned: true, views: 7, custom: 'keep me' },
     '正文内容'
   );
   const { data, body } = parseFrontMatter(md);
   assert.equal(data.title, '带:冒号 #井号 "引号"');
+  assert.equal(data.author, 'DeepSeek V4.1 Flash 1017');
   assert.equal(data.date, '2025-01-06 09:00');
   assert.deepEqual(data.categories, ['技术']);
   assert.deepEqual(data.tags, ['a', 'b c']);

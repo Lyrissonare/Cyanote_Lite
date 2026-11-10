@@ -6,7 +6,7 @@
    (publisher/FrontMatter.cs); keep the two in sync when extending. */
 
 const FM_KEYS = new Set([
-  'title', 'date', 'updated', 'categories', 'tags', 'excerpt',
+  'title', 'author', 'date', 'updated', 'categories', 'tags', 'excerpt',
   'cover', 'pinned', 'views', 'status', 'draft',
 ]);
 
@@ -126,6 +126,7 @@ export function stringifyFrontMatter(data, body) {
   const lines = ['---'];
   const push = (k, v) => lines.push(`${k}: ${v}`);
   if (data.title != null) push('title', quoteIfNeeded(data.title));
+  if (data.author) push('author', quoteIfNeeded(data.author));
   if (data.date) push('date', fmtDate(data.date));
   if (data.updated) push('updated', fmtDate(data.updated));
   if (Array.isArray(data.categories) && data.categories.length) push('categories', `[${data.categories.map(quoteIfNeeded).join(', ')}]`);

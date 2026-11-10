@@ -16,7 +16,7 @@ public sealed partial class FrontMatter
     /// <summary>已知的键（小写）。序列化时这些键按规范顺序输出，其余原样附在后面。</summary>
     private static readonly string[] KnownKeys =
     {
-        "title", "date", "updated", "categories", "tags", "excerpt",
+        "title", "author", "date", "updated", "categories", "tags", "excerpt",
         "cover", "pinned", "views", "status", "draft",
     };
 
@@ -28,6 +28,7 @@ public sealed partial class FrontMatter
     public bool HasFm { get; private set; }
 
     public string? Title => Data.TryGetValue("title", out var v) ? v as string : null;
+    public string? Author => Data.TryGetValue("author", out var v) ? v as string : null;
     public string? Excerpt => Data.TryGetValue("excerpt", out var v) ? v as string : null;
     public string? Cover => Data.TryGetValue("cover", out var v) ? v as string : null;
     public bool Pinned => Data.TryGetValue("pinned", out var v) && v is true or "true" or 1L;
@@ -197,6 +198,8 @@ public sealed partial class FrontMatter
 
         if (Data.TryGetValue("title", out var title) && title is not null)
             Push("title", QuoteIfNeeded(title.ToString()!));
+        if (Data.TryGetValue("author", out var author) && !string.IsNullOrEmpty(author?.ToString()))
+            Push("author", QuoteIfNeeded(author.ToString()!));
         if (Data.TryGetValue("date", out var date) && !string.IsNullOrEmpty(date?.ToString()))
             Push("date", FmtDate(date.ToString()!));
         if (Data.TryGetValue("updated", out var updated) && !string.IsNullOrEmpty(updated?.ToString()))
