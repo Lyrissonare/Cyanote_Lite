@@ -23,11 +23,10 @@ export async function renderArticle(app, params) {
             ${article.pinned ? '<span class="post-pin">置顶</span>' : ''}
             ${article.status !== 'published' ? '<span class="post-pin" style="background:linear-gradient(135deg,#f59e0b,#ef4444)">草稿</span>' : ''}
             <h1 class="article-title">${escapeHtml(article.title)}</h1>
-            <div class="post-meta" style="font-size:13px">
+            <div class="post-meta article-meta">
               ${authorHTML(article.author)}
               ${article.author ? '<span class="dot"></span>' : ''}<time>发布于 ${fmtDate(article.publishedAt || article.updatedAt)}</time>
               ${article.updatedAt !== article.publishedAt ? `<span class="dot"></span><span>更新于 ${fmtDate(article.updatedAt)}</span>` : ''}
-              <span class="dot"></span><span>${article.views} 次阅读</span>
               ${article.categories.map((c) => `<a class="chip chip-sm" href="#/posts?category=${encodeURIComponent(c)}">${escapeHtml(c)}</a>`).join('')}
               ${article.tags.map((t) => `<a class="chip chip-sm" href="#/posts?tag=${encodeURIComponent(t)}"># ${escapeHtml(t)}</a>`).join('')}
             </div>

@@ -50,8 +50,7 @@ export function postCardHTML(article, { showExcerpt = true } = {}) {
         : ''
     }
     <div class="post-meta">
-      ${authorHTML(article.author)}
-      ${article.author ? '<span class="dot"></span>' : ''}<time>${fmtDate(date)}</time>
+      <time>${fmtDate(date)}</time>
       ${cats ? `<span class="dot"></span>${cats}` : ''}
       ${tags ? `<span class="dot"></span>${tags}` : ''}
       ${words > 0 ? `<span class="words" title="字数">${words} 字</span>` : ''}
