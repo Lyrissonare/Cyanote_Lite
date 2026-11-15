@@ -82,7 +82,7 @@ npm test      # front-matter / 查询逻辑自检
 | [`Lyrissonare/Cyanote_Lite`](https://github.com/Lyrissonare/Cyanote_Lite) | 博客系统源码（本仓库）：前端、构建器、发布器、示例内容 |
 | [`Lyrissonare/blog`](https://github.com/Lyrissonare/blog) | 实际博客：文章正文 + Pages 部署工作流 |
 
-线上站点：**https://lyrissonare.github.io/blog/**
+线上站点：**https://lyrissonare.space**
 
 博客仓库的 `.github/workflows/deploy.yml` 在每次推送后：
 

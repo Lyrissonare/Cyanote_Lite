@@ -150,7 +150,7 @@ Hexo、Hugo、Astro 都能把一堆 md 变成站点，用它们更省事。省�
 
 ## 回到那个晚上
 
-这篇文章现在就是 `content/posts` 下的一个 md 文件。写完，`node build.mjs`，`git push`，随后出现在 https://lyrissonare.github.io/blog/ 上。没有进程需要照看，也没有数据库需要备份。
+这篇文章现在就是 `content/posts` 下的一个 md 文件。写完，`node build.mjs`，`git push`，随后出现在 https://lyrissonare.space 上。没有进程需要照看，也没有数据库需要备份。
 
 前端比原版多了一个开屏动画，WebGL 的水波和鱼眼，一千多行。它和轻量没有关系，是我想看。
 
