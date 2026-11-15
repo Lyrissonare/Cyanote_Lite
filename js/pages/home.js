@@ -1,6 +1,7 @@
 import { get } from '../api.js';
 import { getMeta, postCardHTML, renderSidebarInto } from '../site.js';
 import { escapeHtml } from '../util.js';
+import { icon } from '../icons.js';
 import { mountDissolve } from '../dissolve.js';
 
 export async function renderHome(app) {
@@ -31,24 +32,24 @@ export async function renderHome(app) {
         ${
           full.length
             ? full.map((a) => postCardHTML(a)).join('')
-            : `<div class="empty"><span class="emoji">🌊</span>还没有文章</div>`
+            : `<div class="empty">${icon('wave', 56, 'ei')}还没有文章</div>`
         }
         ${ghost ? dissolveCardHTML(ghost) : ''}
 
         <h2 class="section-title">探索</h2>
         <div class="explore-grid">
           <a class="explore-card" href="#/categories">
-            <span class="explore-ico">🗂️</span>
+            ${icon('folder', 24)}
             <b>分类</b>
             <small>${meta.categories.slice(0, 4).map((c) => escapeHtml(c.name)).join(' · ') || '暂无'}</small>
           </a>
           <a class="explore-card" href="#/tags">
-            <span class="explore-ico">🏷️</span>
+            ${icon('tag', 24)}
             <b>标签</b>
             <small>${meta.tags.slice(0, 4).map((t) => `# ${escapeHtml(t.name)}`).join(' · ') || '暂无'}</small>
           </a>
           <a class="explore-card" href="#/archive">
-            <span class="explore-ico">🕰️</span>
+            ${icon('clock', 24)}
             <b>归档</b>
             <small>${meta.archive.map((y) => `${y.year} 年`).join(' · ') || '暂无'}</small>
           </a>
@@ -74,7 +75,7 @@ function dissolveCardHTML(article) {
       <div class="dissolve-haze" aria-hidden="true"></div>
       <canvas class="dissolve-motes" aria-hidden="true"></canvas>
       <a class="dissolve-link" href="#/posts" aria-label="查看全部文章">
-        <span class="dissolve-cta">✨ 查看全部文章</span>
+        <span class="dissolve-cta">${icon('spark', 20)}查看全部文章</span>
       </a>
     </div>`;
 }

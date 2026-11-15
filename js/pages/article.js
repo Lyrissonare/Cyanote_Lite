@@ -2,13 +2,14 @@ import { get } from '../api.js';
 import { authorHTML, renderSidebarInto } from '../site.js';
 import { renderMarkdown } from '../markdown.js';
 import { escapeHtml, fmtDate } from '../util.js';
+import { icon } from '../icons.js';
 
 export async function renderArticle(app, params) {
   let article;
   try {
     article = await get(`/api/articles/${encodeURIComponent(params.slug)}`);
   } catch (err) {
-    app.innerHTML = `<div class="empty"><span class="emoji">🌊</span>${escapeHtml(err.message || '文章未找到')}<br /><a href="#/posts">返回文章列表</a></div>`;
+    app.innerHTML = `<div class="empty">${icon('wave', 56, 'ei')}${escapeHtml(err.message || '文章未找到')}<br /><a href="#/posts">返回文章列表</a></div>`;
     return;
   }
 

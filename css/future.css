@@ -187,5 +187,11 @@ body.future-mode .dissolve-link:hover .dissolve-cta {
   box-shadow: 0 0 30px rgba(34, 211, 238, 0.5);
 }
 
+/* icons on the glass panels: --ico (#2f7ac6 light / #74a9dd dark) sinks into
+   the navy ground, so lift them to cyan. CTA star needs nothing — its parent
+   already sets color and the star is currentColor. */
+body.future-mode .explore-card .ico,
+body.future-mode .empty .ei { color: #7fd3ee; }
+
 /* subtle respawn transition when toggled */
 body, .hero, .post-card, .widget, .article, .site-header { transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, color 0.3s ease, transform 0.2s ease; }

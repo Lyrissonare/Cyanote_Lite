@@ -3,6 +3,7 @@ import { get } from './api.js';
 import { escapeHtml, fmtDate, snippet, wordCount } from './util.js';
 import { isFutureOn, setFutureOn, applyTheme } from './theme.js';
 import { renderMarkdown } from './markdown.js';
+import { icon } from './icons.js';
 
 let metaCache = null;
 let metaAt = 0;
@@ -22,10 +23,10 @@ export function invalidateMeta() {
 export function authorHTML(author) {
   const name = String(author || '').trim();
   if (!name) return '';
-  const icon = /^DeepSeek\b/i.test(name)
+  const badge = /^DeepSeek\b/i.test(name)
     ? '<img class="deepseek-whale" src="vendor/deepseek.svg" alt="" width="17" height="17" />'
     : '';
-  return `<span class="post-author">${icon}<span>${escapeHtml(name)}</span></span>`;
+  return `<span class="post-author">${badge}<span>${escapeHtml(name)}</span></span>`;
 }
 
 export function postCardHTML(article, { showExcerpt = true } = {}) {
@@ -83,7 +84,7 @@ function announcementWidgetHTML(settings) {
   const { html } = renderMarkdown(settings.announcements);
   return `
     <div class="widget announcement-widget">
-      <h4>📢 公告</h4>
+      <h4>${icon('megaphone', 16)}公告</h4>
       <div class="article-body widget-md">${html}</div>
     </div>`;
 }
@@ -94,7 +95,7 @@ function friendLinksWidgetHTML(settings) {
   if (!links.length) return '';
   return `
     <div class="widget friend-links-widget">
-      <h4>🔗 友情链接</h4>
+      <h4>${icon('link', 16)}友情链接</h4>
       <ul class="widget-list">
         ${links
           .map(
@@ -119,7 +120,7 @@ export function sidebarHTML(meta, settings = {}) {
       </button>
       <p class="widget-note">霓虹、玻璃与流动网格的先锋视效。</p>
       <div class="conflict-note" hidden>
-        ⚠️ 亮色模式与未来视效冲突。
+        ${icon('alert', 14)}亮色模式与未来视效冲突。
         <button type="button" id="conflict-to-dark">切换暗色</button>
       </div>
     </div>${statWidgetHTML(meta)}

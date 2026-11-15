@@ -1,6 +1,7 @@
 import { get } from '../api.js';
 import { renderSidebarInto } from '../site.js';
 import { escapeHtml } from '../util.js';
+import { icon } from '../icons.js';
 
 export async function renderArchive(app) {
   const posts = await get('/api/archive');
@@ -55,7 +56,7 @@ export async function renderArchive(app) {
             </section>`;
                 })
                 .join('')
-            : `<div class="empty"><span class="emoji">🕰️</span>还没有归档内容</div>`
+            : `<div class="empty">${icon('clock', 56, 'ei')}还没有归档内容</div>`
         }
       </div>
       <div id="sidebar-slot"></div>

@@ -1,6 +1,7 @@
 import { get } from '../api.js';
 import { postCardHTML, paginationHTML, renderSidebarInto } from '../site.js';
 import { escapeHtml, debounce } from '../util.js';
+import { icon } from '../icons.js';
 
 export async function renderPosts(app, params, query) {
   const q = query.get('q') || '';
@@ -51,7 +52,7 @@ export async function renderPosts(app, params, query) {
         ${
           data.items.length
             ? data.items.map((a) => postCardHTML(a)).join('')
-            : `<div class="empty"><span class="emoji">🔍</span>没有找到符合条件的文章</div>`
+            : `<div class="empty">${icon('search', 56, 'ei')}没有找到符合条件的文章</div>`
         }
         ${paginationHTML(data.page, data.total, data.pageSize)}
       </div>

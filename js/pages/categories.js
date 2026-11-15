@@ -1,6 +1,7 @@
 import { get } from '../api.js';
 import { getMeta, renderSidebarInto } from '../site.js';
 import { escapeHtml, fmtDate } from '../util.js';
+import { icon } from '../icons.js';
 
 export async function renderCategories(app) {
   const [meta, all] = await Promise.all([
@@ -30,7 +31,7 @@ export async function renderCategories(app) {
                   (c) => `
             <section class="cat-group">
               <div class="cat-group-head">
-                <span>🗂️ ${escapeHtml(c.name)}</span>
+                ${icon('folder', 16)}<span>${escapeHtml(c.name)}</span>
                 <span class="count">${c.count} 篇</span>
               </div>
               ${(byCategory.get(c.name) || [])
@@ -45,7 +46,7 @@ export async function renderCategories(app) {
             </section>`
                 )
                 .join('')
-            : `<div class="empty"><span class="emoji">🗂️</span>暂无分类</div>`
+            : `<div class="empty">${icon('folder', 56, 'ei')}暂无分类</div>`
         }
       </div>
       <div id="sidebar-slot"></div>

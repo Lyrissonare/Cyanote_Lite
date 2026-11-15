@@ -18,7 +18,7 @@ const slugForId = (() => {
 export function renderMarkdown(md, { forPreview = false } = {}) {
   if (!md || !md.trim()) {
     return {
-      html: `<div class="empty-hint">${forPreview ? '开始输入，预览会实时呈现 ✨' : ''}</div>`,
+      html: `<div class="empty-hint">${forPreview ? '开始输入，预览会实时呈现' : ''}</div>`,
       headings: [],
     };
   }

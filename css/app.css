@@ -44,6 +44,15 @@
   --font-serif: Georgia, 'Songti SC', 'SimSun', serif;
   --font-script: 'Mrs Saint Delafield', 'Segoe Script', cursive;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, 'Courier New', monospace;
+
+  /* hand-drawn icons: monochrome marks + the two-tone 「涟」 logo.
+     --ico is NOT an alias of --accent-2: light accent-2 (#3b82f6) is too pale
+     (4.18:1 needs #2f7ac6). --ck-arc / --ck-hand must be set in *both* themes —
+     the symbol fallback #51C0F9 is neither value. */
+  --ico: #2f7ac6;
+  --ck-arc: #2466ad;
+  --ck-hand: #4a90cf;
+
   color-scheme: light;
 }
 
@@ -71,6 +80,9 @@ html[data-theme='dark'] {
   --border-soft: #1e2228;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.35);
   --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.5), 0 20px 48px rgba(0, 0, 0, 0.45);
+  --ico: #74a9dd;
+  --ck-arc: #3F83F0;
+  --ck-hand: #6fd2fb;
   color-scheme: dark;
 }
 
@@ -651,7 +663,6 @@ html[data-theme='dark'] .tag-cloud a:hover { border-color: var(--tag-hover-bg); 
 .explore-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: color-mix(in srgb, var(--accent-2) 45%, var(--border)); color: var(--text); }
 .explore-card b { font-size: 16px; }
 .explore-card small { color: var(--text-3); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.explore-ico { font-size: 22px; }
 body.future-mode .explore-card { background: linear-gradient(165deg, rgba(23,33,64,0.72), rgba(10,16,36,0.82)); backdrop-filter: blur(12px); border-color: rgba(96,165,250,0.22); }
 body.future-mode .explore-card:hover { border-color: rgba(34,211,238,0.55); box-shadow: 0 0 0 1px rgba(124,58,237,0.3), 0 22px 60px rgba(59,130,246,0.35); }
 
@@ -753,6 +764,9 @@ kbd {
   padding-bottom: 13px;
 }
 .dissolve-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 9px 22px;
   border-radius: 999px;
   font-size: 13.5px;
@@ -783,9 +797,34 @@ kbd {
   .dissolve-cta { transition: none; }
 }
 
+/* ---------- Icons (hand-drawn SVG, see js/icons.js) ---------- */
+/* Deliberately no `color` here: the 10 mono marks and the CTA star ride on
+   currentColor so hover / future-mode recolour them via their container.
+   Deliberately no `.ico path { fill:none }` — that would blank the wave. */
+.ico {
+  display: block; flex: none;
+  width: var(--s, 24px); height: var(--s, 24px);
+  fill: none; stroke: currentColor;
+  stroke-width: var(--sw, 1.75);
+  stroke-linecap: round; stroke-linejoin: round;
+  overflow: visible;
+}
+/* secondary strokes inside a symbol: thinner + faded via --lw / --lo */
+.ico-l {
+  stroke-width: calc(var(--sw, 1.75) * var(--lw, .82));
+  opacity: var(--lo, 1);
+}
+.empty .ei { display: block; margin: 0 auto 10px; color: var(--ico); }
+.explore-card .ico { margin-bottom: 2px; color: var(--ico); }
+.widget h4 .ico { color: currentColor; opacity: .85; }
+.cat-group-head .ico { align-self: center; color: var(--ico); }
+/* inline inside a paragraph: must not turn .conflict-note into a flex box,
+   or the text becomes one anonymous flex item and wraps differently */
+.conflict-note .ico { display: inline-block; vertical-align: -3px; margin-right: 4px; color: currentColor; }
+.dissolve-cta .ico { color: currentColor; margin-top: -1px; }
+
 /* ---------- States ---------- */
 .empty { text-align: center; padding: 60px 20px; color: var(--text-3); }
-.empty .emoji { font-size: 40px; display: block; margin-bottom: 10px; }
 .loading { text-align: center; padding: 50px; color: var(--text-3); }
 .loading::after { content: ''; display: inline-block; width: 22px; height: 22px; margin-left: 10px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--accent-2); animation: spin 0.8s linear infinite; vertical-align: -5px; }
 @keyframes spin { to { transform: rotate(360deg); } }

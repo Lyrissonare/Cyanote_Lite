@@ -3,6 +3,7 @@ import { initTheme, initFuture } from './theme.js';
 import { initCursorGlow } from './cursor-glow.js';
 import { initSplash } from './splash.js';
 import { escapeHtml } from './util.js';
+import { icon } from './icons.js';
 import { renderHome } from './pages/home.js';
 import { renderPosts } from './pages/posts.js';
 import { renderArticle } from './pages/article.js';
@@ -51,7 +52,7 @@ async function route() {
     await found.page(app, params, query);
   } catch (err) {
     console.error(err);
-    app.innerHTML = `<div class="empty"><span class="emoji">🌊</span>${escapeHtml(err.message || '加载失败')}<br /><a href="#/">返回首页</a></div>`;
+    app.innerHTML = `<div class="empty">${icon('wave', 56, 'ei')}${escapeHtml(err.message || '加载失败')}<br /><a href="#/">返回首页</a></div>`;
   }
 }
 
