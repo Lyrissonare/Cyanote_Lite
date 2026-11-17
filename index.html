@@ -29,12 +29,29 @@
         } catch (e) {}
         if (onHome && (forced || !seen)) {
           d.classList.add('splash-pending');
+          /* only pay for the splash module's fetch on loads that will play
+             the intro; the rest of the site is a hash-routed SPA */
+          try {
+            var pre = document.createElement('link');
+            pre.rel = 'modulepreload';
+            pre.href = 'js/splash.js';
+            document.head.appendChild(pre);
+            /* the wordmark's own mark matters on a cold cache: start the
+               visible one at the same priority as the stylesheets */
+            var logo = document.createElement('link');
+            logo.rel = 'preload';
+            logo.as = 'image';
+            logo.href = d.dataset.theme === 'dark' ? 'assets/logo-dark.png' : 'assets/logo-light.png';
+            document.head.appendChild(logo);
+          } catch (e) {}
           try {
             sessionStorage.setItem('cyanote-splash', '1');
           } catch (e) {}
-          /* escape hatch: if the module never runs, never trap the reader */
-          setTimeout(function () {
-            d.classList.remove('splash-pending');
+          /* escape hatch: if the module never runs, never trap the reader.
+             js/splash.js clears this as soon as it takes ownership, so a
+             cold GPU compiling its shader cannot be cut off mid-intro. */
+          window.__cyanoteSplashWatchdog = setTimeout(function () {
+            document.documentElement.classList.remove('splash-pending');
           }, 4000);
         }
       } catch (e) {}
@@ -67,6 +84,30 @@
       </div>
     </div>
   </div>
+  <!-- Start the ripple before the app's script/module stack has finished
+       loading. A dynamic import is not serialised behind the parser-blocking
+       vendor scripts, so on a cold cache the water is already moving while
+       marked/Prism/the page modules arrive. main.js awaits this promise. -->
+  <script>
+    (function () {
+      var d = document.documentElement;
+      if (!d.classList.contains('splash-pending')) {
+        window.__cyanoteSplashReady = Promise.resolve(function () {});
+        return;
+      }
+      window.__cyanoteSplashReady = import('./js/splash.js')
+        .then(function (m) {
+          return m.initSplash();
+        })
+        .catch(function () {
+          /* never trap the reader if the module cannot be fetched */
+          d.classList.remove('splash-pending');
+          var el = document.getElementById('splash');
+          if (el) el.remove();
+          return function () {};
+        });
+    })();
+  </script>
   <div id="cursor-glow" aria-hidden="true"></div>
   <div id="star-lit" aria-hidden="true"><div class="inner"></div></div>
   <div id="bg-grid" class="bg-grid" aria-hidden="true"></div>

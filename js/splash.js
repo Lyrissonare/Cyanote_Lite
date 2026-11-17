@@ -19,7 +19,18 @@
    and the page window in a single pass. That keeps Edge's compositor out of
    the old path (several full-screen gradients + `lighter` composites per
    frame). On machines without usable WebGL a 2D fallback draws the same
-   grid as warped polylines, so the fisheye still reads.
+   grid as warped polylines, so the fisheye still reads; a lost WebGL
+   context swaps to that painter mid-animation instead of ending the intro.
+
+   Cold-start hardening:
+     - an inline loader in index.html dynamic-imports this module before the
+       app's script/module stack, so the water is already moving while a cold
+       browser is still fetching marked/Prism/the page modules;
+     - shader compile/link is asynchronous when KHR_parallel_shader_compile
+       exists, so a cold GPU process cannot block the page boot;
+     - frame gaps caused by startup long tasks are excluded from the scene
+       clock (see STALL_KEEP), so a stutter stretches the intro instead of
+       skipping the drop, the lens or the collapse.
 
    Only armed by the inline head script (first home visit of a session, or
    ?splash=1), so inner navigation never replays it. */
@@ -29,8 +40,18 @@ const LENS_SPAN = 720; // ms until it reaches the corners
 const ENTER_LEAD = 1780; // ms: page entry; leaves a beat of full fisheye first
 const ENTER_SPAN = 480; // ms of page entering under the lens
 const COLLAPSE_SPAN = 340; // ms for the lens to shrink into the centre
-const MAX_WAIT = 2300; // ms: never hold the reader hostage on a slow fetch
+const MAX_WAIT = 2300; // ms after app start: never hold the reader hostage on a slow fetch
+const BOOT_MAX_WAIT = 6000; // ms: page still loading if the app never signalled
 const APEX = 1.55; // fisheye strength at full growth (barrel limit is π/2)
+const DROP_AT = 0.10; // s: the drop lands
+
+/* A cold browser can freeze the main thread for hundreds of ms (GPU process
+   start, script parse, first paint). Wall-clock time would then skip whole
+   beats of the intro; instead, only the part of a frame gap above
+   STALL_KEEP counts, and the timeline is stretched by the rest. */
+const STALL_MS = 100; // frame gaps up to this are ordinary low frame rate
+const STALL_KEEP = 80; // ms of the gap that still advances the intro
+const MAX_LAG = 2600; // ms: cap, so a pathologically slow machine still ends
 
 const TAU = Math.PI * 2;
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -162,7 +183,7 @@ function createPageWarp(stage) {
   const width = Math.max(1, Math.round(rect.width || vw));
   const fieldTop = Math.max(0, -rect.top);
   const fieldH = Math.round(vh * 1.35);
-  const mapW = 420;
+  const mapW = 224;
   const mapH = Math.max(160, Math.min(1200, Math.round((mapW * fieldH) / width)));
   const cv = document.createElement('canvas');
   cv.width = mapW;
@@ -174,7 +195,7 @@ function createPageWarp(stage) {
   const px = data.data;
   const cx = width * 0.5;
   const cy = vh * 0.5;
-  const maxR = Math.hypot(cx, cy);
+  const maxR = Math.sqrt(cx * cx + cy * cy);
   const DMAX = Math.min(vw, vh) * 0.18;
   const scaleMax = DMAX * 2;
   const fadeStart = vh * 1.02;
@@ -187,7 +208,7 @@ function createPageWarp(stage) {
       const fx = ((x + 0.5) / mapW) * width;
       const ox = fx - cx;
       const oy = fy - cy;
-      const r = Math.hypot(ox, oy);
+      const r = Math.sqrt(ox * ox + oy * oy);
       let dx = 0;
       let dy = 0;
       if (r > 0.001 && fade > 0) {
@@ -260,18 +281,36 @@ uniform vec2  uRes;
 uniform vec2  uCenter;
 uniform float uPixelScale;
 uniform float uR0;
+uniform float uInvR0;
 uniform float uTime;
 uniform float uA;
+uniform float uLensSin;
+uniform float uLensInvA;
 uniform float uZoom;
 uniform float uLens;      // lens growth 0..1
 uniform float uLensR;     // lens rim radius in screen px
 uniform float uLensRim;   // rim highlight 0..1
 uniform float uRipple;    // ambient wake strength
 uniform float uRipR;      // wake envelope radius in scene px
+uniform float uRipInv;    // 1 / (R0 * 1.05)
+uniform float uInvWl;     // 1 / (R0 * 0.085)
 uniform float uPage;      // page-entry progress 0..1
 uniform float uPageR;     // clear window radius in screen px
 uniform float uPageSoft;
 uniform float uCollapse;  // final lens collapse 0..1
+
+/* per-frame quantities that used to be recomputed for every pixel */
+uniform vec4  uCrestR;    // crest ring radius, 0 when that crest is not born yet
+uniform vec4  uCrestW;    // crest ring width
+uniform vec4  uCrestFade; // crest energy (0 when not born)
+uniform vec4  uCrestWob;  // crest angular wobble amplitude
+uniform float uDropFlash; // exp(-dropAge*15) while the drop has landed, else 0
+uniform float uBeadAmp;   // pre-impact bead strength, 0 when not gathering
+uniform float uBeadInvR2; // 1 / bead radius^2
+uniform float uFlashK;    // 1 / (R0 * 0.05)^2
+uniform float uCollapseEdge;
+uniform float uShrinkR;
+uniform float uGlass;
 
 uniform vec3 uCore;
 uniform vec3 uMid;
@@ -331,18 +370,18 @@ float lensSceneR(float screenR) {
   float s = screenR / z;
   if (uA < 1e-4) return s;
   if (s <= uR0) {
-    float u = clamp(s / uR0, 0.0, 1.0);
-    float x = asin(clamp(u * sin(uA), 0.0, 1.0)) / uA;
+    float u = clamp(s * uInvR0, 0.0, 1.0);
+    float x = asin(clamp(u * uLensSin, 0.0, 1.0)) * uLensInvA;
     return x * uR0;
   }
   return uR0 + (s - uR0);
 }
 
 /* distance to the nearest line, antialiased in screen space; fades when the
-   lens squeezes the far rim so the compressed grid never shimmers */
-float gridLayer(vec2 q, float spacing, float aaFade) {
+   lens squeezes the far rim so the compressed grid never shimmers. The
+   derivative is computed once by the caller and shared by both layers. */
+float gridLayer(vec2 q, float spacing, float aaFade, vec2 fw) {
   vec2 cell = abs(fract(q / spacing + 0.5) - 0.5) * spacing;
-  vec2 fw = max(fwidth(q), vec2(1e-4));
   vec2 line = 1.0 - smoothstep(fw * 0.35, fw * 1.15, cell);
   return max(line.x, line.y) * aaFade;
 }
@@ -353,14 +392,41 @@ float causticNet(vec2 q, float t) {
   float b = sin(p.y * 2.0 + sin(p.x * 2.4 - t * 0.58) * 1.5 - t * 0.3);
   float c = sin((p.x + p.y) * 1.6 + sin((p.x - p.y) * 1.8 + t * 0.5) * 1.4 + t * 0.2);
   float ridge = 1.0 - clamp(abs(a + b + c * 0.7) / 2.2, 0.0, 1.0);
-  return pow(ridge, 12.0);
+  float r2 = ridge * ridge;
+  float r4 = r2 * r2;
+  return r4 * r4 * r4;
+}
+
+/* one crest of the wake. The phase is a literal at each call site, so the
+   sin/cos of the four angular offsets fold at compile time. */
+void addCrest(float rr, float w, float fade, float wobAmp, float ph,
+              float sin4a, float cos4a, float sceneR, float ripR,
+              inout float crest, inout float slope) {
+  if (fade <= 0.0) return;
+  float wob = (sin4a * cos(ph) + cos4a * sin(ph)) * wobAmp;
+  float d = (sceneR - (rr + wob)) / w;
+  float g = exp(-d * d);
+  float edge = 1.0 - smoothstep(ripR * 0.62, ripR, sceneR);
+  crest += g * fade * edge;
+  slope += -d * g * fade * edge;
 }
 
 void main() {
   vec2 frag = vec2(gl_FragCoord.x, uRes.y * uPixelScale - gl_FragCoord.y) / uPixelScale;
   vec2 p = frag - uCenter;
   float s = length(p);
-  float ang = atan(p.y, p.x);
+
+  /* The angle is only consumed as sin/cos, so it is never materialised:
+     sin(4a)/cos(4a) come straight from the normalised offset, and the tiny
+     ripple rotation is a first-order direction rotation. This replaces
+     atan() + six trig calls with multiplies. */
+  float invS = s > 1e-4 ? 1.0 / s : 0.0;
+  vec2 dir = vec2(p.x * invS, p.y * invS);
+  if (s <= 1e-4) dir = vec2(1.0, 0.0);
+  float dx2 = dir.x * dir.x;
+  float dy2 = dir.y * dir.y;
+  float sin4a = 4.0 * dir.x * dir.y * (dx2 - dy2);
+  float cos4a = (dx2 - dy2) * (dx2 - dy2) - 4.0 * dx2 * dy2;
 
   /* the lens is a disc: inside it the water is projected through the
      barrel mapping, outside it stays flat until the rim sweeps past */
@@ -368,38 +434,37 @@ void main() {
   float lensMask = 1.0 - smoothstep(uLensR - lensSoft, uLensR + lensSoft, s);
   float sceneR = mix(s / uZoom, lensSceneR(s), lensMask);
 
-  /* --- the drop launches a ring train; the wake retracts later ---------- */
-  float dropAge = uTime - IMPACT;
+  /* --- the drop launches a ring train; the wake retracts later ----------
+     The per-crest age is resolved on the CPU and arrives as uniforms, so
+     the four exp()/smoothstep() terms are no longer per-pixel work. */
   float crest = 0.0;
   float slope = 0.0;
-  if (dropAge > 0.0) {
-    for (int i = 0; i < 4; i++) {
-      float age = dropAge - float(i) * 0.085;
-      if (age > 0.0) {
-        float rr = age * uR0 * 0.80;
-        float wob = sin(ang * 4.0 + float(i) * 1.9) * (1.2 + age * 5.5);
-        float w = 3.5 + age * 30.0;
-        float d = (sceneR - (rr + wob)) / w;
-        float g = exp(-d * d);
-        float fade = exp(-age * 1.5) * smoothstep(0.0, 0.045, age);
-        float edge = 1.0 - smoothstep(uRipR * 0.62, uRipR, sceneR);
-        crest += g * fade * edge;
-        slope += -d * g * fade * edge;
-      }
-    }
-  }
+  addCrest(uCrestR.x, uCrestW.x, uCrestFade.x, uCrestWob.x, 0.0,
+           sin4a, cos4a, sceneR, uRipR, crest, slope);
+  addCrest(uCrestR.y, uCrestW.y, uCrestFade.y, uCrestWob.y, 1.9,
+           sin4a, cos4a, sceneR, uRipR, crest, slope);
+  addCrest(uCrestR.z, uCrestW.z, uCrestFade.z, uCrestWob.z, 3.8,
+           sin4a, cos4a, sceneR, uRipR, crest, slope);
+  addCrest(uCrestR.w, uCrestW.w, uCrestFade.w, uCrestWob.w, 5.7,
+           sin4a, cos4a, sceneR, uRipR, crest, slope);
 
-  float ripEnv = exp(-sceneR / (uR0 * 1.05)) *
+  float ripEnv = exp(-sceneR * uRipInv) *
                  (1.0 - smoothstep(uRipR * 0.72, uRipR, sceneR));
-  float wl = uR0 * 0.085;
-  float phase = sceneR / wl - uTime * 5.2;
+  float phase = sceneR * uInvWl - uTime * 5.2;
   float wave = sin(phase) * ripEnv * uRipple;
-  float softCrest = pow(0.5 + 0.5 * sin(phase + 0.7), 4.0) * ripEnv * uRipple;
+  float sc = 0.5 + 0.5 * sin(phase + 0.7);
+  float sc2 = sc * sc;
+  float softCrest = sc2 * sc2 * ripEnv * uRipple;
   float disp = slope * uR0 * 0.030 + wave * uR0 * 0.013;
   float dispA = slope * 0.003 + wave * 0.004;
   float warpR = sceneR + disp;
-  float warpA = ang + dispA;
-  vec2 q = vec2(cos(warpA), sin(warpA)) * warpR;
+  /* |dispA| stays in the milliradian range; the 5th-order Taylor tail is
+     far below one 8-bit channel step, so this is visually exact. */
+  float da2 = dispA * dispA;
+  float cosD = 1.0 - 0.5 * da2 + da2 * da2 * (1.0 / 24.0);
+  float sinD = dispA - dispA * da2 * (1.0 / 6.0);
+  vec2 q = vec2(dir.x * cosD - dir.y * sinD,
+                dir.y * cosD + dir.x * sinD) * warpR;
   float undulate = 0.4 + 0.6 * uRipple;
   q += vec2(
     sin(q.y * 0.0075 + uTime * 0.55) * 3.2 + sin(q.y * 0.021 - uTime * 0.3) * 1.1,
@@ -407,7 +472,7 @@ void main() {
   ) * undulate;
 
   /* --- water body ------------------------------------------------------- */
-  float depth = clamp(s / uR0, 0.0, 1.0);
+  float depth = clamp(s * uInvR0, 0.0, 1.0);
   vec3 col = mix(uCore, uMid, smoothstep(0.0, 0.62, depth));
   col = mix(col, uEdge, smoothstep(0.4, 1.03, depth));
   col = mix(col, uWash, uLens * uWashK);
@@ -415,14 +480,12 @@ void main() {
   float glow = exp(-depth * depth * 5.2);
   col += uGlow * uGlowK * glow * (1.0 - 0.25 * uLens);
 
-  float flash = exp(-dropAge * 15.0) * exp(-pow(s / (uR0 * 0.05), 2.0)) *
-                step(0.0, dropAge);
+  float flash = uDropFlash * exp(-s * s * uFlashK);
   col += uGlow * flash * 0.6;
 
-  if (dropAge < 0.0) {
-    float gather = clamp(1.0 + dropAge / IMPACT, 0.0, 1.0);
-    float bead = exp(-pow(s / (uR0 * (0.006 + 0.011 * gather)), 2.0));
-    col += uGlow * bead * gather * gather * 0.38;
+  if (uBeadAmp > 0.0) {
+    float bead = exp(-s * s * uBeadInvR2);
+    col += uGlow * bead * uBeadAmp;
   }
 
   /* --- caustics, ripple crests and the grid ----------------------------- */
@@ -439,8 +502,8 @@ void main() {
 
   vec2 fw = max(fwidth(q), vec2(1e-4));
   float aaFade = 1.0 - 0.38 * smoothstep(4.0, 10.0, max(fw.x, fw.y));
-  float minor = gridLayer(q, 56.0, aaFade);
-  float major = gridLayer(q, 56.0 * 5.0, aaFade);
+  float minor = gridLayer(q, 56.0, aaFade, fw);
+  float major = gridLayer(q, 56.0 * 5.0, aaFade, fw);
   float grid = (minor * 0.085 + major * 0.18) * uLineK *
                (0.9 + 0.95 * uLens + 0.8 * uCollapse);
   col = mix(col, uLine, clamp(grid, 0.0, 0.6));
@@ -450,8 +513,10 @@ void main() {
   col = mix(col, uMote, clamp(mot * uMoteK, 0.0, 0.9));
 
   /* --- the glass rim sweeping outward ---------------------------------- */
-  float rimBand = exp(-pow((s - uLensR) / max(1.0, lensSoft * 0.42), 2.0)) * uLensRim;
-  float rimCore = exp(-pow((s - uLensR) / max(0.8, lensSoft * 0.11), 2.0)) * uLensRim;
+  float rbA = (s - uLensR) / max(1.0, lensSoft * 0.42);
+  float rcA = (s - uLensR) / max(0.8, lensSoft * 0.11);
+  float rimBand = exp(-rbA * rbA) * uLensRim;
+  float rimCore = exp(-rcA * rcA) * uLensRim;
   col = mix(col, uCaustic, clamp(rimBand * 0.7, 0.0, 0.78));
   col += uGlow * (rimBand * 0.1 + rimCore * 0.14);
 
@@ -469,36 +534,32 @@ void main() {
   /* --- the whole lens is sucked into the centre -------------------------
      A circular aperture closes on the water; a bright edge rides that
      aperture inward so the collapse reads as one lens, not a fade. */
-  float shrink = 1.0 - uCollapse * uCollapse;
-  float shrinkR = uR0 * shrink;
-  float aperture = 1.0 - smoothstep(shrinkR - 7.0, shrinkR + 7.0, s);
-  float collapseEdge = pow(max(0.0, sin(PI * uCollapse)), 0.7);
-  float lensRing = exp(-pow((s - shrinkR) / (2.5 + 11.0 * uCollapse), 2.0)) * collapseEdge;
-  float ringCore = exp(-pow((s - shrinkR) / 1.25, 2.0)) * collapseEdge;
-  /* once the aperture is inside the viewport, give it a glass body:
-     the page stays readable, but the fisheye has something to shrink */
-  float glass = 0.24 * collapseEdge * smoothstep(0.12, 0.4, uCollapse);
+  float aperture = 1.0 - smoothstep(uShrinkR - 7.0, uShrinkR + 7.0, s);
+  float lrA = (s - uShrinkR) / (2.5 + 11.0 * uCollapse);
+  float rcB = (s - uShrinkR) / 1.25;
+  float lensRing = exp(-lrA * lrA) * uCollapseEdge;
+  float ringCore = exp(-rcB * rcB) * uCollapseEdge;
   col = mix(col, uCaustic, clamp(lensRing * 0.8, 0.0, 0.85));
   col += uGlow * ringCore * 0.18;
-  alpha = max(alpha, glass) * aperture;
+  alpha = max(alpha, uGlass) * aperture;
   alpha = max(alpha, lensRing * 0.62 * aperture);
   alpha = max(alpha, ringCore * 0.55 * aperture);
 
   outColor = vec4(col * alpha, alpha);
-}`;
+}
+`;
 
-function compile(gl, type, src) {
+function makeShader(gl, type, src) {
   const sh = gl.createShader(type);
   gl.shaderSource(sh, src);
   gl.compileShader(sh);
-  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-    console.warn('[splash] shader compile failed:', gl.getShaderInfoLog(sh));
-    gl.deleteShader(sh);
-    return null;
-  }
   return sh;
 }
 
+/* Always resolves to an engine or null; the caller may swap to the 2D path.
+   With KHR_parallel_shader_compile the expensive GPU-side compile/link runs
+   while the main thread keeps booting the page, instead of blocking it at
+   exactly the moment a cold browser is still warming its GPU process up. */
 function createGLEngine(canvas, pal) {
   const gl = canvas.getContext('webgl2', {
     alpha: true,
@@ -506,69 +567,34 @@ function createGLEngine(canvas, pal) {
     depth: false,
     stencil: false,
     premultipliedAlpha: true,
-    powerPreference: 'high-performance',
+    /* 'default' lets a hybrid laptop keep the iGPU awake: asking for the
+       discrete GPU on the first launch after boot can stall the whole GPU
+       process while the driver powers it up, which reads as a dead splash */
+    powerPreference: 'default',
     failIfMajorPerformanceCaveat: true,
   });
-  if (!gl) return null;
+  if (!gl) return Promise.resolve(null);
   canvas.dataset.engine = 'webgl2';
 
-  const vs = compile(gl, gl.VERTEX_SHADER, VERT);
-  const fs = vs && compile(gl, gl.FRAGMENT_SHADER, FRAG);
-  const prog = fs && gl.createProgram();
-  if (!prog) return null;
+  const vs = makeShader(gl, gl.VERTEX_SHADER, VERT);
+  const fs = makeShader(gl, gl.FRAGMENT_SHADER, FRAG);
+  const prog = gl.createProgram();
+  if (!vs || !fs || !prog) return Promise.resolve(null);
   gl.attachShader(prog, vs);
   gl.attachShader(prog, fs);
   gl.linkProgram(prog);
-  gl.deleteShader(vs);
-  gl.deleteShader(fs);
-  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-    console.warn('[splash] program link failed:', gl.getProgramInfoLog(prog));
-    return null;
-  }
-
-  const buf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-  const aPos = gl.getAttribLocation(prog, 'aPos');
-  gl.enableVertexAttribArray(aPos);
-  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
-  gl.useProgram(prog);
-  gl.disable(gl.DEPTH_TEST);
-  gl.disable(gl.CULL_FACE);
-  gl.clearColor(0, 0, 0, 0);
-
-  const names = [
-    'uRes', 'uCenter', 'uPixelScale', 'uR0', 'uTime', 'uA', 'uZoom',
-    'uLens', 'uLensR', 'uLensRim', 'uRipple', 'uRipR',
-    'uPage', 'uPageR', 'uPageSoft', 'uCollapse',
-    'uCore', 'uMid', 'uEdge', 'uWash', 'uGlow', 'uLine', 'uCaustic', 'uMote', 'uShade',
-    'uGlowK', 'uWashK', 'uLineK', 'uCausticK', 'uMoteK', 'uShadeK',
-  ];
-  const U = {};
-  for (const n of names) U[n] = gl.getUniformLocation(prog, n);
-  gl.uniform3fv(U.uCore, pal.gl.core);
-  gl.uniform3fv(U.uMid, pal.gl.mid);
-  gl.uniform3fv(U.uEdge, pal.gl.edge);
-  gl.uniform3fv(U.uWash, pal.gl.wash);
-  gl.uniform3fv(U.uGlow, pal.gl.glow);
-  gl.uniform3fv(U.uLine, pal.gl.line);
-  gl.uniform3fv(U.uCaustic, pal.gl.caustic);
-  gl.uniform3fv(U.uMote, pal.gl.mote);
-  gl.uniform3fv(U.uShade, pal.gl.shade);
-  gl.uniform1f(U.uGlowK, pal.gl.glowK);
-  gl.uniform1f(U.uWashK, pal.gl.washK);
-  gl.uniform1f(U.uLineK, pal.gl.lineK);
-  gl.uniform1f(U.uCausticK, pal.gl.causticK);
-  gl.uniform1f(U.uMoteK, pal.gl.moteK);
-  gl.uniform1f(U.uShadeK, pal.gl.shadeK);
 
   let quality = 1;
   let geom = { w: 0, h: 0, cx: 0, cy: 0, R0: 1, scale: 1 };
   let lost = false;
+  let disposed = false;
+  let lostHandler = null;
+  let buf = null;
 
   canvas.addEventListener('webglcontextlost', (e) => {
     e.preventDefault();
     lost = true;
+    if (lostHandler) lostHandler();
   });
 
   function resize() {
@@ -590,9 +616,17 @@ function createGLEngine(canvas, pal) {
        makes the circular collapse clip below exact */
     const cx = w * 0.5;
     const cy = h * 0.5;
-    const R0 = Math.hypot(w, h) * 0.5;
+    const R0 = Math.sqrt(w * w + h * h) * 0.5;
     geom = { w, h, cx, cy, R0, scale };
   }
+
+  /* per-frame crest parameters, reused so the draw path allocates nothing */
+  const crestR = new Float32Array(4);
+  const crestW = new Float32Array(4);
+  const crestFade = new Float32Array(4);
+  const crestWob = new Float32Array(4);
+
+  let U = null;
 
   function draw(st) {
     if (lost || gl.isContextLost()) return false;
@@ -601,8 +635,14 @@ function createGLEngine(canvas, pal) {
     gl.uniform2f(U.uCenter, cx, cy);
     gl.uniform1f(U.uPixelScale, scale);
     gl.uniform1f(U.uR0, R0);
+    gl.uniform1f(U.uInvR0, 1 / R0);
+    gl.uniform1f(U.uRipInv, 1 / (R0 * 1.05));
+    gl.uniform1f(U.uInvWl, 1 / (R0 * 0.085));
+    gl.uniform1f(U.uFlashK, 400 / (R0 * R0));
     gl.uniform1f(U.uTime, st.time);
     gl.uniform1f(U.uA, st.A);
+    gl.uniform1f(U.uLensSin, st.A > 1e-4 ? Math.sin(st.A) : 0);
+    gl.uniform1f(U.uLensInvA, st.A > 1e-4 ? 1 / st.A : 0);
     gl.uniform1f(U.uZoom, st.Z);
     gl.uniform1f(U.uLens, st.lens);
     gl.uniform1f(U.uLensR, st.lensR);
@@ -613,6 +653,47 @@ function createGLEngine(canvas, pal) {
     gl.uniform1f(U.uPageR, st.pageR);
     gl.uniform1f(U.uPageSoft, st.pageSoft);
     gl.uniform1f(U.uCollapse, st.collapse);
+
+    /* the drop's ring train and bead are resolved here, once per frame,
+       instead of paying four exp()/smoothstep() pairs on every pixel */
+    const dropAge = st.time - DROP_AT;
+    gl.uniform1f(U.uDropFlash, dropAge >= 0 ? Math.exp(-dropAge * 15) : 0);
+    let beadAmp = 0;
+    let beadInvR2 = 0;
+    if (dropAge < 0) {
+      const gather = clamp01(1 + dropAge / DROP_AT);
+      const beadR = R0 * (0.006 + 0.011 * gather);
+      beadAmp = gather * gather * 0.38;
+      beadInvR2 = 1 / (beadR * beadR);
+    }
+    gl.uniform1f(U.uBeadAmp, beadAmp);
+    gl.uniform1f(U.uBeadInvR2, beadInvR2);
+    for (let i = 0; i < 4; i++) {
+      const age = dropAge - i * 0.085;
+      if (age > 0) {
+        crestR[i] = age * R0 * 0.8;
+        crestW[i] = 3.5 + age * 30;
+        crestFade[i] = Math.exp(-age * 1.5) * smoothstep(0, 0.045, age);
+        crestWob[i] = 1.2 + age * 5.5;
+      } else {
+        crestR[i] = 0;
+        crestW[i] = 1;
+        crestFade[i] = 0;
+        crestWob[i] = 0;
+      }
+    }
+    gl.uniform4fv(U.uCrestR, crestR);
+    gl.uniform4fv(U.uCrestW, crestW);
+    gl.uniform4fv(U.uCrestFade, crestFade);
+    gl.uniform4fv(U.uCrestWob, crestWob);
+
+    const collapseEdge = st.collapse > 0
+      ? Math.pow(Math.max(0, Math.sin(Math.PI * st.collapse)), 0.7)
+      : 0;
+    gl.uniform1f(U.uCollapseEdge, collapseEdge);
+    gl.uniform1f(U.uShrinkR, R0 * (1 - st.collapse * st.collapse));
+    gl.uniform1f(U.uGlass, 0.24 * collapseEdge * smoothstep(0.12, 0.4, st.collapse));
+
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     return true;
   }
@@ -624,14 +705,107 @@ function createGLEngine(canvas, pal) {
   }
 
   function dispose() {
+    if (disposed) return;
+    disposed = true;
     gl.deleteBuffer(buf);
     gl.deleteProgram(prog);
     const lose = gl.getExtension('WEBGL_lose_context');
     if (lose) lose.loseContext();
   }
 
-  resize();
-  return { resize, draw, degrade, dispose };
+  function onLost(fn) {
+    lostHandler = fn;
+  }
+
+  function finishSetup() {
+    if (lost || gl.isContextLost()) return null;
+    if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
+      console.warn('[splash] shader compile failed:', gl.getShaderInfoLog(vs));
+      return null;
+    }
+    if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
+      console.warn('[splash] shader compile failed:', gl.getShaderInfoLog(fs));
+      return null;
+    }
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      console.warn('[splash] program link failed:', gl.getProgramInfoLog(prog));
+      return null;
+    }
+    gl.deleteShader(vs);
+    gl.deleteShader(fs);
+
+    buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const aPos = gl.getAttribLocation(prog, 'aPos');
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+    gl.useProgram(prog);
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.CULL_FACE);
+    gl.clearColor(0, 0, 0, 0);
+
+    const names = [
+      'uRes', 'uCenter', 'uPixelScale', 'uR0', 'uInvR0', 'uTime',
+      'uA', 'uLensSin', 'uLensInvA', 'uZoom',
+      'uLens', 'uLensR', 'uLensRim', 'uRipple', 'uRipR', 'uRipInv', 'uInvWl',
+      'uPage', 'uPageR', 'uPageSoft', 'uCollapse',
+      'uCrestR', 'uCrestW', 'uCrestFade', 'uCrestWob',
+      'uDropFlash', 'uBeadAmp', 'uBeadInvR2', 'uFlashK',
+      'uCollapseEdge', 'uShrinkR', 'uGlass',
+      'uCore', 'uMid', 'uEdge', 'uWash', 'uGlow', 'uLine', 'uCaustic', 'uMote', 'uShade',
+      'uGlowK', 'uWashK', 'uLineK', 'uCausticK', 'uMoteK', 'uShadeK',
+    ];
+    U = {};
+    for (const n of names) U[n] = gl.getUniformLocation(prog, n);
+    gl.uniform3fv(U.uCore, pal.gl.core);
+    gl.uniform3fv(U.uMid, pal.gl.mid);
+    gl.uniform3fv(U.uEdge, pal.gl.edge);
+    gl.uniform3fv(U.uWash, pal.gl.wash);
+    gl.uniform3fv(U.uGlow, pal.gl.glow);
+    gl.uniform3fv(U.uLine, pal.gl.line);
+    gl.uniform3fv(U.uCaustic, pal.gl.caustic);
+    gl.uniform3fv(U.uMote, pal.gl.mote);
+    gl.uniform3fv(U.uShade, pal.gl.shade);
+    gl.uniform1f(U.uGlowK, pal.gl.glowK);
+    gl.uniform1f(U.uWashK, pal.gl.washK);
+    gl.uniform1f(U.uLineK, pal.gl.lineK);
+    gl.uniform1f(U.uCausticK, pal.gl.causticK);
+    gl.uniform1f(U.uMoteK, pal.gl.moteK);
+    gl.uniform1f(U.uShadeK, pal.gl.shadeK);
+
+    resize();
+    return { kind: 'gl', resize, draw, degrade, dispose, onLost };
+  }
+
+  /* older browsers compile synchronously, as before; modern ones hand the
+     work to the GPU process and let us poll without blocking paint */
+  const parallel = gl.getExtension('KHR_parallel_shader_compile');
+  if (!parallel) return Promise.resolve(finishSetup());
+
+  return new Promise((resolve) => {
+    const started = performance.now();
+    const poll = () => {
+      if (lost || gl.isContextLost()) {
+        resolve(null);
+        return;
+      }
+      let done = false;
+      try {
+        done = gl.getProgramParameter(prog, parallel.COMPLETION_STATUS_KHR);
+      } catch {
+        done = true;
+      }
+      if (done) {
+        resolve(finishSetup());
+      } else if (performance.now() - started > 5000) {
+        resolve(null);
+      } else {
+        setTimeout(poll, 24);
+      }
+    };
+    poll();
+  });
 }
 
 /* ------------------------------------------------- 2D fallback (no WebGL) */
@@ -647,6 +821,7 @@ function create2DEngine(canvas, pal) {
   let glowGrad = null;
   let motes = [];
   let lastPaint = 0;
+  let flatGrid = null;
 
   function resize() {
     const w = window.innerWidth;
@@ -665,8 +840,9 @@ function create2DEngine(canvas, pal) {
 
     const cx = w * 0.5;
     const cy = h * 0.5;
-    const R0 = Math.hypot(w, h) * 0.5;
+    const R0 = Math.sqrt(w * w + h * h) * 0.5;
     geom = { w, h, cx, cy, R0, dpr };
+    flatGrid = null;
 
     fieldGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, R0 * 1.04);
     for (const [p, c] of f.field) fieldGrad.addColorStop(p, c);
@@ -690,24 +866,83 @@ function create2DEngine(canvas, pal) {
     }
   }
 
-  function warpR(r, A, Z) {
+  function warpR(r, A, Z, sinA) {
     if (A < 1e-4) return r * Z;
     const x = Math.min(1, r / geom.R0);
     const over = r > geom.R0 ? r - geom.R0 : 0;
-    return (Math.sin(x * A) / Math.sin(A)) * geom.R0 * Z + over * Z;
+    return (Math.sin(x * A) / (sinA || Math.sin(A))) * geom.R0 * Z + over * Z;
   }
 
-  function project(sx, sy, A, Z) {
-    const r = Math.hypot(sx, sy);
+  function project(sx, sy, A, Z, sinA) {
+    const r = Math.sqrt(sx * sx + sy * sy);
     if (r < 1e-4) return [geom.cx, geom.cy];
-    const R = warpR(r, A, Z);
+    const R = warpR(r, A, Z, sinA);
     return [geom.cx + (sx / r) * R, geom.cy + (sy / r) * R];
+  }
+
+  /* Before the lens grows the projection is the identity; the straight
+     notebook grid is then rasterised once per resize and blitted, instead
+     of re-projecting ~1500 points on every frame (the Via/WebView path). */
+  function buildFlatGrid() {
+    const { w, h, cx, cy, R0, dpr } = geom;
+    const cv = document.createElement('canvas');
+    cv.width = Math.max(1, Math.round(w * dpr));
+    cv.height = Math.max(1, Math.round(h * dpr));
+    const g = cv.getContext('2d');
+    if (!g) return null;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.lineWidth = 1;
+    const half = R0 * 1.02;
+    for (const [step, alpha] of [
+      [280, 0.2],
+      [56, 0.09],
+    ]) {
+      const count = Math.ceil(half / step);
+      g.beginPath();
+      for (let i = -count; i <= count; i++) {
+        const off = i * step;
+        g.moveTo(cx + off, cy - half);
+        g.lineTo(cx + off, cy + half);
+        g.moveTo(cx - half, cy + off);
+        g.lineTo(cx + half, cy + off);
+      }
+      g.strokeStyle = `rgba(${f.line},${alpha * f.lineK})`;
+      g.stroke();
+    }
+    return cv;
+  }
+
+  function drawShells(A, Z, lens, sinA) {
+    const { cx, cy, R0 } = geom;
+    ctx.beginPath();
+    for (let i = 1; i <= 12; i++) {
+      const r = (i / 12) * R0 * 0.98;
+      const R = warpR(r, A, Z, sinA);
+      ctx.moveTo(cx + R, cy);
+      ctx.arc(cx, cy, Math.max(0.5, R), 0, TAU);
+    }
+    ctx.strokeStyle = `rgba(${f.caustic},${0.032 * f.causticK * (0.7 + 0.5 * lens)})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
   }
 
   function drawGrid(st) {
     const { cx, cy, R0 } = geom;
     const A = st.A;
     const Z = st.Z;
+
+    if (A < 1e-4) {
+      if (!flatGrid) flatGrid = buildFlatGrid();
+      if (flatGrid) {
+        ctx.globalAlpha = 0.9 + 0.95 * st.lens;
+        ctx.drawImage(flatGrid, 0, 0, geom.w, geom.h);
+        ctx.globalAlpha = 1;
+        drawShells(A, Z, st.lens, 0);
+        return;
+      }
+    }
+
+    const sinA = A < 1e-4 ? 0 : Math.sin(A);
     const half = R0 * 1.02;
     const steps = 20;
     const minor = 56;
@@ -724,7 +959,7 @@ function create2DEngine(canvas, pal) {
         const off = i * step;
         for (let k = 0; k <= steps; k++) {
           const v = -half + (2 * half * k) / steps;
-          const pt = project(off, v, A, Z);
+          const pt = project(off, v, A, Z, sinA);
           if (k === 0) ctx.moveTo(pt[0], pt[1]);
           else ctx.lineTo(pt[0], pt[1]);
         }
@@ -733,7 +968,7 @@ function create2DEngine(canvas, pal) {
         const off = i * step;
         for (let k = 0; k <= steps; k++) {
           const v = -half + (2 * half * k) / steps;
-          const pt = project(v, off, A, Z);
+          const pt = project(v, off, A, Z, sinA);
           if (k === 0) ctx.moveTo(pt[0], pt[1]);
           else ctx.lineTo(pt[0], pt[1]);
         }
@@ -743,26 +978,18 @@ function create2DEngine(canvas, pal) {
     }
 
     /* concentric shells bunch up under the lens — the second distortion cue */
-    ctx.beginPath();
-    for (let i = 1; i <= 12; i++) {
-      const r = (i / 12) * R0 * 0.98;
-      const R = warpR(r, A, Z);
-      ctx.moveTo(cx + R, cy);
-      ctx.arc(cx, cy, Math.max(0.5, R), 0, TAU);
-    }
-    ctx.strokeStyle = `rgba(${f.caustic},${0.032 * f.causticK * (0.7 + 0.5 * st.lens)})`;
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    drawShells(A, Z, st.lens, sinA);
   }
 
   function drawCrests(st) {
     const { cx, cy, R0 } = geom;
+    const sinA = st.A < 1e-4 ? 0 : Math.sin(st.A);
     for (let i = 0; i < 4; i++) {
       const age = st.time - 0.10 - i * 0.085;
       if (age <= 0) continue;
       const rr = age * R0 * 0.8;
       if (rr > st.ripR) continue;
-      const R = warpR(rr, st.A, st.Z);
+      const R = warpR(rr, st.A, st.Z, sinA);
       const a = Math.exp(-age * 1.5) * 0.42;
       ctx.beginPath();
       ctx.arc(cx, cy, R, 0, TAU);
@@ -782,6 +1009,7 @@ function create2DEngine(canvas, pal) {
 
   function drawMotes(st, dt) {
     const { cx, cy, R0 } = geom;
+    const sinA = st.A < 1e-4 ? 0 : Math.sin(st.A);
     ctx.globalCompositeOperation = f.additive ? 'lighter' : 'source-over';
     for (const m of motes) {
       m.rr += m.vr * dt * (1 + 2.2 * st.lens);
@@ -790,8 +1018,8 @@ function create2DEngine(canvas, pal) {
         m.ang = Math.random() * TAU;
       }
       const sceneR = m.rr * R0;
-      const R = warpR(sceneR, st.A, st.Z);
-      const mag = st.A < 1e-4 ? st.Z : ((st.A * Math.cos(Math.min(1, sceneR / R0) * st.A)) / Math.sin(st.A)) * st.Z;
+      const R = warpR(sceneR, st.A, st.Z, sinA);
+      const mag = st.A < 1e-4 ? st.Z : ((st.A * Math.cos(Math.min(1, sceneR / R0) * st.A)) / (sinA || Math.sin(st.A))) * st.Z;
       const twinkle = 0.62 + 0.38 * Math.sin(st.time * 1.7 * m.tw + m.ph);
       const a = Math.min(1, m.a * twinkle * f.moteA);
       if (a < 0.012) continue;
@@ -905,7 +1133,7 @@ function create2DEngine(canvas, pal) {
   }
 
   resize();
-  return { resize, draw, degrade() {}, dispose() {} };
+  return { kind: '2d', resize, draw, degrade() {}, dispose() {} };
 }
 
 /* ---------------------------------------------------------------- lifecycle */
@@ -927,28 +1155,20 @@ export function initSplash() {
   const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   let canvas = el.querySelector('.splash-lens');
   if (reduced || !canvas) {
-    root.classList.remove('splash-pending');
-    el.remove();
-    return () => {};
+    /* No animation (reduced motion, or no canvas): keep the matching solid
+       shell until the app has a first screen, then drop it. This also covers
+       the early-boot case, where removing it now would expose an empty
+       #page-stage while the app modules are still loading. */
+    return () => {
+      root.classList.remove('splash-pending');
+      el.remove();
+    };
   }
 
   const pal = palette();
   const force2D = /(?:^|[?&])splash2d=1/.test(location.search);
-  let engine = force2D ? null : createGLEngine(canvas, pal);
-  if (!engine) {
-    const fresh = document.createElement('canvas');
-    fresh.className = canvas.className;
-    canvas.replaceWith(fresh);
-    canvas = fresh;
-    engine = create2DEngine(canvas, pal);
-  }
-  if (!engine) {
-    root.classList.remove('splash-pending');
-    el.remove();
-    return () => {};
-  }
 
-  const t0 = performance.now();
+  let engine = null;
   let pageReady = false;
   let enterAt = 0;
   let collapseAt = 0;
@@ -957,14 +1177,26 @@ export function initSplash() {
   let pageLens = null;
   let pageLensPrepared = false;
   let finished = false;
+  let started = false;
+  let t0 = 0;
+  let lag = 0;
+  let lastFrame = 0;
+  let firstFrame = true;
+  let swapping = false;
   let raf = 0;
-  let last = 0;
   let perfAcc = 0;
   let perfN = 0;
   let perfSlow = 0;
   let perfChecked = false;
   let maxWait = 0;
+  let appStarted = false;
+  let warpSteps = 24;
   let geo = null;
+
+  if (window.__cyanoteSplashWatchdog) {
+    clearTimeout(window.__cyanoteSplashWatchdog);
+    window.__cyanoteSplashWatchdog = 0;
+  }
 
   function geometry() {
     if (geo) return geo;
@@ -972,21 +1204,25 @@ export function initSplash() {
     const h = window.innerHeight;
     const cx = w * 0.5;
     const cy = h * 0.5;
-    const R0 = Math.hypot(w, h) * 0.5;
+    const R0 = Math.sqrt(w * w + h * h) * 0.5;
     return (geo = { w, h, cx, cy, R0 });
   }
 
   function preparePageLens() {
     if (pageLensPrepared) return;
-    pageLensPrepared = true;
     const stage = document.getElementById('page-stage');
     if (!stage) return;
+    pageLensPrepared = true;
     pageLens = createPageWarp(stage);
   }
 
   function setPageWarp(k) {
     if (!pageLens) return;
-    const scale = Math.round(pageLens.scaleMax * k * 10) / 10;
+    /* quantised steps below one displacement-map pixel; 24 is imperceptible
+       on a capable machine. A machine that has shown real stalls drops to
+       12 so the collapse does not re-raster the SVG filter every frame. */
+    const q = Math.round(clamp01(k) * warpSteps) / warpSteps;
+    const scale = Math.round(pageLens.scaleMax * q * 10) / 10;
     if (scale === pageLens.last) return;
     pageLens.last = scale;
     pageLens.disp.setAttribute('scale', String(scale));
@@ -1016,13 +1252,71 @@ export function initSplash() {
     clearPageLens();
     root.classList.remove('splash-pending');
     el.remove();
-    engine.dispose();
+    if (engine) engine.dispose();
   }
 
-  function beginEnter(now) {
+  /* WebGL can be reset by a driver under load; fall back to the 2D painter
+     on a fresh canvas so the remaining beats still play instead of the
+     splash vanishing and the page popping in. */
+  function swapTo2D() {
+    if (finished || swapping || (engine && engine.kind === '2d')) return;
+    swapping = true;
+    const old = engine;
+    engine = null;
+    if (old) {
+      try {
+        old.dispose();
+      } catch {
+        /* already gone */
+      }
+    }
+    const fresh = document.createElement('canvas');
+    fresh.className = canvas.className;
+    canvas.replaceWith(fresh);
+    canvas = fresh;
+    const e2 = create2DEngine(canvas, pal);
+    if (!e2) {
+      swapping = false;
+      finish();
+      return;
+    }
+    engine = e2;
+    swapping = false;
+    if (!started) start();
+    else drawOnce(performance.now());
+  }
+
+  function start() {
+    if (finished || started) return;
+    started = true;
+    if (window.__cyanoteAppStarted) appStarted = true;
+    t0 = performance.now();
+    lastFrame = t0;
+    if (!drawOnce(t0)) return;
+    window.addEventListener('resize', onResize);
+    if (!pageReady) {
+      clearTimeout(maxWait);
+      /* if the app has already booted, its 2.3s budget applies; if the
+         splash started first (early boot), give the page a longer cap and
+         let appStart() tighten it when the router actually begins */
+      maxWait = setTimeout(reveal, appStarted ? MAX_WAIT : BOOT_MAX_WAIT);
+    }
+    raf = requestAnimationFrame(tick);
+  }
+
+  /* main.js calls this right before it starts routing: from here on the
+     2.3s "slow fetch" budget is the only reason to open the lens early */
+  function appStart() {
+    appStarted = true;
+    if (!started || pageReady || finished) return;
+    clearTimeout(maxWait);
+    maxWait = setTimeout(reveal, MAX_WAIT);
+  }
+
+  function beginEnter(vt) {
     if (enterAt) return;
-    enterAt = now;
-    collapseAt = now + ENTER_SPAN;
+    enterAt = vt;
+    collapseAt = vt + ENTER_SPAN;
     /* the page becomes visible through the shader window; the shell's flat
        colour must be gone by then or it would block the page */
     el.classList.add('is-revealing');
@@ -1031,11 +1325,12 @@ export function initSplash() {
 
   function frameState(now) {
     const R0 = geometry().R0;
-    const elapsed = (now - t0) / 1000;
+    const vt = now - lag;
+    const elapsed = (vt - t0) / 1000;
 
     /* lens: disc radius leads, optical power arrives slightly earlier so the
        rim carries the distortion outward as it sweeps */
-    const grew = clamp01((now - t0 - LENS_START) / LENS_SPAN);
+    const grew = clamp01((vt - t0 - LENS_START) / LENS_SPAN);
     const grow = easeInOutCubic(grew);
     const A = APEX * easeOutCubic(grew);
     const lensR = grow * R0 * 1.06;
@@ -1043,18 +1338,18 @@ export function initSplash() {
                     (1 - smoothstep(0.84, 0.99, grew)) * 0.9;
 
     /* wake: energy drains while its envelope retracts toward the middle */
-    const contract = easeInOutCubic(clamp01((now - t0 - 580) / 500));
+    const contract = easeInOutCubic(clamp01((vt - t0 - 580) / 500));
     const ripR = R0 * (1.22 - 0.64 * contract);
     const ripple = elapsed < 0.1 ? 0 : 0.22 + 0.78 * Math.exp(-(elapsed - 0.1) / 0.75);
 
     let page = 0;
     let pageR = 0;
     if (enterAt) {
-      page = easeInOutCubic(clamp01((now - enterAt) / ENTER_SPAN));
+      page = easeInOutCubic(clamp01((vt - enterAt) / ENTER_SPAN));
       pageR = R0 * (0.1 + 0.6 * page);
     }
 
-    const collapse = collapseAt ? clamp01((now - collapseAt) / COLLAPSE_SPAN) : 0;
+    const collapse = collapseAt ? clamp01((vt - collapseAt) / COLLAPSE_SPAN) : 0;
 
     return {
       now,
@@ -1074,16 +1369,21 @@ export function initSplash() {
   }
 
   function drawOnce(now) {
-    if (finished) return false;
+    if (finished || !started || !engine) return false;
+    const vt = now - lag;
 
-    if (now - t0 >= LENS_START && !lensMarked) {
+    if (vt - t0 >= LENS_START && !lensMarked) {
       lensMarked = true;
       el.classList.add('is-lensing');
     }
-    if (pageReady && !enterAt && now >= t0 + ENTER_LEAD) beginEnter(now);
+    if (pageReady && !enterAt && vt >= t0 + ENTER_LEAD) beginEnter(vt);
 
     const st = frameState(now);
     if (!engine.draw(st)) {
+      if (engine.kind === 'gl') {
+        swapTo2D();
+        return !finished;
+      }
       finish();
       return false;
     }
@@ -1110,8 +1410,8 @@ export function initSplash() {
 
   function onResize() {
     geo = null;
-    engine.resize();
-    drawOnce(performance.now());
+    if (engine) engine.resize();
+    if (started) drawOnce(performance.now());
   }
 
   function tick(now) {
@@ -1121,45 +1421,89 @@ export function initSplash() {
     }
     raf = requestAnimationFrame(tick);
     if (document.hidden) {
-      last = now;
+      lastFrame = now;
       return;
     }
-    const dt = last ? Math.min(50, now - last) : 16;
-    last = now;
+    const gap = lastFrame ? now - lastFrame : 0;
+    lastFrame = now;
+
+    /* Startup long tasks and cold-browser stalls must not eat the intro:
+       keep the first frame at ~16ms of scene time, and for later gaps only
+       let STALL_KEEP ms of each stall advance the timeline. */
+    if (gap > 0) {
+      if (firstFrame) {
+        firstFrame = false;
+        if (gap > 50) lag += gap - 16;
+        if (gap > 200) warpSteps = 12;
+      } else if (gap > STALL_MS) {
+        lag += Math.min(gap - STALL_KEEP, Math.max(0, MAX_LAG - lag));
+        if (gap > 200) warpSteps = 12;
+      }
+    }
 
     if (!drawOnce(now)) return;
 
     /* Measure while the lens is growing, not during startup: page-load long
        tasks must not make a capable GPU drop its backing store. Sustained
        slowness (18 frames) is what triggers the resolution step. */
-    if (!perfChecked && !collapseAt && now - t0 > 780) {
+    const dt = Math.min(50, gap || 16);
+    if (!perfChecked && !collapseAt && now - lag - t0 > 780) {
       perfAcc += dt;
       perfN++;
       if (dt > 26) perfSlow++;
       if (perfN >= 18) {
         perfChecked = true;
-        if (perfSlow >= 8 || perfAcc / perfN > 26) engine.degrade();
+        if (perfSlow >= 8 || perfAcc / perfN > 26) {
+          engine.degrade();
+          warpSteps = 12;
+        }
       }
     }
   }
 
-  const reveal = () => {
-    if (pageReady) return;
+  /* stored on the window so the tiny early-boot loader can hand the app's
+     readiness back to a splash that started before the app modules ran */
+  function reveal() {
+    if (pageReady || finished) return;
     pageReady = true;
     clearTimeout(maxWait);
     maxWait = 0;
     preparePageLens();
-    if (performance.now() >= t0 + ENTER_LEAD) beginEnter(performance.now());
-  };
+    if (!started || finished) return;
+    const vt = performance.now() - lag;
+    if (vt >= t0 + ENTER_LEAD) beginEnter(vt);
+  }
 
-  /* paint once synchronously so the shell's solid backdrop is covered before
-     the browser gets a chance to show the page behind it */
-  if (!drawOnce(performance.now())) return () => {};
-  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('is-playing')));
+  /* the wordmark is CSS-only: show it as soon as the shell paints, so a cold
+     GPU compiling the shader still sees a designed screen, not a blank one */
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (!finished && el.isConnected) el.classList.add('is-playing');
+  }));
 
-  window.addEventListener('resize', onResize);
-  maxWait = setTimeout(reveal, MAX_WAIT);
+  let enginePromise;
+  try {
+    enginePromise = force2D ? Promise.resolve(null) : createGLEngine(canvas, pal);
+  } catch {
+    enginePromise = Promise.resolve(null);
+  }
+  Promise.resolve(enginePromise).then(
+    (next) => {
+      if (finished) {
+        if (next) next.dispose();
+        return;
+      }
+      if (next) {
+        engine = next;
+        if (next.onLost) next.onLost(swapTo2D);
+        start();
+      } else {
+        swapTo2D();
+      }
+    },
+    () => swapTo2D()
+  );
 
-  raf = requestAnimationFrame(tick);
+  window.__cyanoteSplashReveal = reveal;
+  window.__cyanoteSplashAppStart = appStart;
   return reveal;
 }

@@ -1,7 +1,6 @@
 /* Cyanote SPA bootstrap: theme + router (public site only) */
 import { initTheme, initFuture } from './theme.js';
 import { initCursorGlow } from './cursor-glow.js';
-import { initSplash } from './splash.js';
 import { escapeHtml } from './util.js';
 import { icon } from './icons.js';
 import { renderHome } from './pages/home.js';
@@ -15,8 +14,10 @@ import { renderAbout } from './pages/about.js';
 initTheme();
 initFuture();
 initCursorGlow();
-/* armed only when the head script decided this load deserves the intro */
-const revealSplash = initSplash();
+/* The splash was started by the inline loader in index.html, before this
+   module graph was even fetched. Here we only hand it the app's readiness
+   once the first screen has something to show. */
+const splashReady = window.__cyanoteSplashReady || Promise.resolve(() => {});
 
 const routes = [
   { match: (s) => s.length === 0, page: renderHome, nav: 'home' },
@@ -57,5 +58,11 @@ async function route() {
 }
 
 window.addEventListener('hashchange', route);
-/* the ripple only opens once the first screen has something to show */
-route().then(revealSplash, revealSplash);
+/* the ripple only opens once the first screen has something to show; the
+   splash's own boot cap still opens it if the app never gets this far */
+window.__cyanoteAppStarted = true;
+window.__cyanoteSplashAppStart?.();
+route().then(
+  () => splashReady.then((reveal) => reveal()),
+  () => splashReady.then((reveal) => reveal())
+);
