@@ -1243,6 +1243,13 @@ export function initSplash() {
     pageLens = null;
   }
 
+  /* Tear the canvas down in two steps. Mobile Chromium (Via/WebView) can
+     paint a scaled WebGL layer as an opaque grey tile (cc's 0xB0B0B0
+     "missing tile" fill) for one frame when the element and its context
+     vanish in the same compositor commit — the single-frame flash the phone
+     recording shows as the intro ends. Take the shell out of the frame
+     first, then drop the element and lose the context only after the
+     compositor has committed that state. */
   function finish() {
     if (finished) return;
     finished = true;
@@ -1251,8 +1258,27 @@ export function initSplash() {
     clearTimeout(maxWait);
     clearPageLens();
     root.classList.remove('splash-pending');
-    el.remove();
-    if (engine) engine.dispose();
+    el.style.display = 'none';
+    const dying = engine;
+    engine = null;
+    const drop = () => {
+      el.remove();
+      if (dying) {
+        try {
+          dying.dispose();
+        } catch {
+          /* already gone */
+        }
+      }
+    };
+    if (document.hidden) {
+      drop();
+      return;
+    }
+    /* let the hidden state commit, then leave a short grace before the
+       context goes away: a queued raster of the scaled canvas must never be
+       able to land on screen after the layer was dropped */
+    requestAnimationFrame(() => setTimeout(drop, 120));
   }
 
   /* WebGL can be reset by a driver under load; fall back to the 2D painter
