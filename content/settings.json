@@ -2,8 +2,8 @@
   "homeRecentCount": "3",
   "aboutContent": "# 关于 Cyanote\n\n> 在蓝色的深处，记录思想与代码。\n\n**Cyanote Lite** 是 Cyanote 的纯静态版本。站点没有服务端，没有数据库，只有一组 HTML、CSS、JS 文件，加上一份由 Markdown 编译出来的索引，托管在 GitHub Pages 上。阅读体验参照 Hexo / Butterfly，全局特征色为蓝色。\n\n## 它有什么\n\n- **阅读**：首页（最新文章 + 侧边栏统计）、文章列表、分类、标签、归档、关于\n- **外观**：暗色 / 亮色主题一键切换；侧边栏可开启「未来视效」先锋风格\n- **写作**：本地写带 front-matter 的 Markdown，发布器选文件、补字段、一次推送\n- **视效**：跟随鼠标的柔和光照\n\n## 技术栈\n\n| 层 | 技术 |\n| --- | --- |\n| 宿主 | GitHub Pages，纯静态 |\n| 前端 | 原生 JS 单页应用（hash 路由） |\n| 构建 | Node.js + `build.mjs`，输出 `content/index.json` |\n| 渲染 | marked + DOMPurify + Prism |\n\n## 关于本文\n\n这段内容来自 `content/settings.json` 的 `aboutContent` 字段，改完重新构建、推送即可。\n",
   "friendLinks": "[]",
-  "announcementsEnabled": "0",
-  "announcements": "欢迎使用 **Cyanote**！\n\n- 支持 [Markdown](https://github.com/Lyrissonare/Cyanote)\n- `行内代码` 与引用\n\n> 侧边栏公告测试",
+  "announcementsEnabled": "1",
+  "announcements": "目前推荐使用Chrome浏览器+暗色模式浏览以获取最佳体验。\n\n更多功能正在“按日进化”建设中...",
   "friendLinksEnabled": "0",
   "socialLinks": "[{\"icon\":\"bilibili\",\"name\":\"B站\",\"url\":\"https://space.bilibili.com/3690973838182420/\"},{\"icon\":\"github\",\"name\":\"GitHub\",\"url\":\"https://github.com/Lyrissonare\"},{\"icon\":\"xhs\",\"name\":\"小红书\",\"url\":\"https://xhslink.cn/o/852FgsC63fu\"}]"
 }
