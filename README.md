@@ -29,7 +29,7 @@
 ├─ content/
 |  ├─ posts/*.md         # ✍️ 文章源文件（Hexo 式 front-matter）
 |  ├─ images/            # 文章图片（引用写作 content/images/xxx.png）
-|  ├─ settings.json      # 站点设置（关于页、公告、友链、首页数量）
+|  ├─ settings.json      # 站点设置（关于页、公告、友链、其他账号、首页数量）
 |  └─ index.json         # ⚙️ 构建产物（公开索引，勿手改）
 ├─ build.mjs             # 索引生成器（node build.mjs [--watch]）
 ├─ serve.mjs             # 零依赖本地预览服务器

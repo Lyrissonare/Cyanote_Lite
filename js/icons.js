@@ -13,7 +13,7 @@
    - the clock keeps its inline stroke-width:35.2 (744 grid, inner scale 1.32)
      = 1.50px at 24px. It deliberately ignores --sw. */
 
-const SPRITE_NAMES = ['wave', 'clock', 'folder', 'tag', 'search', 'megaphone', 'link', 'alert', 'spark'];
+const SPRITE_NAMES = ['wave', 'clock', 'folder', 'tag', 'search', 'megaphone', 'link', 'alert', 'spark', 'bilibili', 'github', 'xhs'];
 
 /** Display sizes used across the site. */
 export const ICON_SIZES = { empty: 56, card: 24, widget: 16, cta: 20, note: 14 };
@@ -145,6 +145,19 @@ const SPRITE = `<svg id="cn-icons" width="0" height="0" aria-hidden="true" focus
 <symbol id="i-spark" viewBox="0 0 24 24">
     <path fill="currentColor" stroke="none" d="M8.8 1.6C9.45 6.8 11.35 8.7 16.4 9.35 11.35 10 9.45 11.9 8.8 17.1 8.15 11.9 6.25 10 1.2 9.35 6.25 8.7 8.15 6.8 8.8 1.6Z"/>
     <path fill="currentColor" stroke="none" opacity=".85" d="M18.9 13.1C19.2 15.9 20.1 16.8 22.9 17.1 20.1 17.4 19.2 18.3 18.9 21.1 18.6 18.3 17.7 17.4 14.9 17.1 17.7 16.8 18.6 15.9 18.9 13.1Z"/>
+  </symbol>
+<symbol id="i-bilibili" viewBox="0 0 24 24">
+    <path d="M7.2 5.5 4.5 2.8M16.8 5.5l2.7-2.7"/>
+    <rect x="2.6" y="5.5" width="18.8" height="14.1" rx="3.5"/>
+    <path d="M8.5 10.6v3.5M15.5 10.6v3.5"/>
+  </symbol>
+<symbol id="i-github" viewBox="0 0 16 16">
+    <path fill="currentColor" stroke="none" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.995 7.995 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+  </symbol>
+<symbol id="i-xhs" viewBox="0 0 24 24">
+    <rect x="3.6" y="3.2" width="16.8" height="17.6" rx="3.2"/>
+    <path class="ico-l" style="--lw:.8;--lo:.55" d="M7.2 3.2v17.6"/>
+    <path d="M15.9 9.1c-1.05-1.1-2.85-.78-3.32.62-.47-1.4-2.27-1.72-3.32-.62-.92 1.03-.6 2.53.38 3.5L12.58 15.5l2.94-2.9c.98-.97 1.3-2.47.38-3.5Z"/>
   </symbol>
 </svg>`;
 

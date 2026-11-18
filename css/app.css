@@ -846,6 +846,40 @@ kbd {
 .friend-links-widget .widget-list li { display: flex; flex-direction: column; gap: 1px; }
 .friend-links-widget .fl-desc { font-size: 12px; color: var(--text-3); padding-left: 1px; }
 
+/* ---------- Sidebar: 其他账号 ---------- */
+.account-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.account-link {
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  padding: 11px 2px 9px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  transition: color .2s ease, background-color .2s ease, border-color .2s ease, transform .2s ease;
+}
+.account-link:hover {
+  color: var(--accent-2);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent-2) 20%, transparent);
+  transform: translateY(-1px);
+}
+.account-icon {
+  display: grid; place-items: center;
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bg-soft) 78%, transparent);
+  transition: background-color .2s ease;
+}
+.account-link:hover .account-icon { background: color-mix(in srgb, var(--accent-2) 12%, transparent); }
+/* B站的小电视故意歪一点，hover 时摆正 */
+.account-link--bilibili .ico { transform: rotate(-8deg); transition: transform .3s cubic-bezier(.34, 1.56, .64, 1); }
+.account-link--bilibili:hover .ico { transform: rotate(0deg); }
+@media (prefers-reduced-motion: reduce) {
+  .account-link, .account-icon, .account-link--bilibili .ico { transition: none; }
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; }

@@ -89,6 +89,39 @@ function announcementWidgetHTML(settings) {
     </div>`;
 }
 
+const ACCOUNT_ICONS = new Set(['bilibili', 'github', 'xhs']);
+
+function parseSocialLinks(json) {
+  try {
+    const arr = JSON.parse(json || '[]');
+    return Array.isArray(arr)
+      ? arr.filter((l) => l && ACCOUNT_ICONS.has(l.icon) && l.name && /^https?:\/\//i.test(l.url))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function accountsWidgetHTML(settings) {
+  const links = parseSocialLinks(settings.socialLinks);
+  if (!links.length) return '';
+  return `
+    <div class="widget accounts-widget">
+      <h4>其他账号</h4>
+      <div class="account-grid">
+        ${links
+          .map(
+            (l) => `
+          <a class="account-link account-link--${l.icon}" href="${escapeHtml(l.url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(l.name)}" aria-label="${escapeHtml(l.name)}">
+            <span class="account-icon">${icon(l.icon, 20)}</span>
+            <span class="account-name">${escapeHtml(l.name)}</span>
+          </a>`
+          )
+          .join('')}
+      </div>
+    </div>`;
+}
+
 function friendLinksWidgetHTML(settings) {
   if (settings.friendLinksEnabled !== '1') return '';
   const links = parseFriendLinks(settings.friendLinks);
@@ -151,6 +184,7 @@ export function sidebarHTML(meta, settings = {}) {
           .join('')}
       </ul>
     </div>
+    ${accountsWidgetHTML(settings)}
     ${friendLinksWidgetHTML(settings)}
   </aside>`;
 }

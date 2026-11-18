@@ -29,6 +29,7 @@ const DEFAULT_SETTINGS = {
   announcements: '',
   friendLinksEnabled: '0',
   friendLinks: '',
+  socialLinks: '',
   aboutContent: `# 关于 Cyanote
 
 > 在蓝色的深处，记录思想与代码。
