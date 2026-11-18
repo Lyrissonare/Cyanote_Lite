@@ -60,12 +60,17 @@ export function postCardHTML(article, { showExcerpt = true } = {}) {
 }
 
 function tagCloudHTML(meta) {
-  const max = Math.max(1, ...meta.tags.map((t) => t.count));
-  return meta.tags
-    .slice(0, 24)
+  const tags = meta.tags.slice(0, 24);
+  const counts = tags.map((t) => t.count);
+  const min = Math.min(...counts);
+  const max = Math.max(...counts);
+  return tags
     .map((t) => {
-      const s = Math.max(1, Math.round((t.count / max) * 4));
-      return `<a href="#/posts?tag=${encodeURIComponent(t.name)}" class="s${s}">${escapeHtml(t.name)}</a>`;
+      const ratio = max === min ? 0.45 : (t.count - min) / (max - min);
+      const size = (12 + ratio * 11).toFixed(1);
+      const weight = 500 + Math.round(ratio * 3) * 100;
+      const label = `${t.name}，${t.count} 篇文章`;
+      return `<a href="#/posts?tag=${encodeURIComponent(t.name)}" style="--tag-size:${size}px;--tag-weight:${weight}" data-count="${t.count}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${escapeHtml(t.name)}</a>`;
     })
     .join('');
 }
